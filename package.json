@@ -1,0 +1,21 @@
+{
+  "name": "ngin404-js13kgames2020",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "gulp build",
+    "build:watch": "gulp build:watch"
+  },
+  "author": "Federico Tibaldo",
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "gulp": "^4.0.2",
+    "gulp-clean": "^0.4.0",
+    "gulp-filter": "^6.0.0",
+    "gulp-htmlmin": "^5.0.1",
+    "gulp-terser": "^1.3.2",
+    "gulp-tinypng-compress": "^1.2.5"
+  }
+}
