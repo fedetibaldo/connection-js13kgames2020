@@ -9,6 +9,12 @@ class Vector {
 	diff(v) {
 		return new Vector(this.x - v.x, this.y - v.y)
 	}
+	length() {
+		return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2))
+	}
+	equals(v) {
+		return this.x == v.x && this.y == v.y
+	}
 }
 
 /** @type {HTMLCanvasElement} */
@@ -75,12 +81,56 @@ class Observable {
 class InputSingleton extends Observable {
 	constructor() {
 		super()
-		this.onClick = this.onClick.bind(this)
-		canvas.onclick = this.onClick
+
+		this.isMouseDown = false
+
+		canvas.onmousedown = (e) => this.onMouseDown(e)
+		canvas.onmouseup = (e) => this.onMouseUp(e)
+		canvas.onmousemove = (e) => this.onMouseMove(e)
+
+		canvas.ontouchstart = (e) => this.onTouchStart(e)
+		canvas.ontouchend = (e) => this.onTouchEnd(e)
+		canvas.ontouchmove = (e) => this.onTouchMove(e)
 	}
-	onClick(e) {
-		let clickPos = new Vector(e.clientX, e.clientY)
-		clickPos = clickPos.diff(cPos)
+	onTouchStart(e) {
+		e = this._normalizeTouchEvent(e)
+		this.onMouseDown(e)
+	}
+	onTouchEnd(e) {
+		this.onMouseUp(e)
+	}
+	onTouchMove(e) {
+		e = this._normalizeTouchEvent(e)
+		this.onMouseMove(e)
+	}
+	_normalizeTouchEvent(e) {
+		e.clientX = e.touches[0].clientX
+		e.clientY = e.touches[0].clientY
+		return e
+	}
+	onMouseDown(e) {
+		this.isMouseDown = true
+		this.onMouseMove(e)
+		this.trigger(`mousedown`, {
+			name: `mousedown`,
+		})
+	}
+	onMouseUp(e) {
+		this.isMouseDown = false
+		this.onMouseMove(e)
+		this.trigger(`mouseup`, {
+			name: `mouseup`,
+		})
+	}
+	onMouseMove(e) {
+		const pos = this._normalizePosition(new Vector(e.clientX, e.clientY))
+		this.trigger(`mousemove`, {
+			name: `mousemove`,
+			pos,
+		})
+	}
+	_normalizePosition(pos) {
+		const clickPos = pos.diff(cPos)
 
 		// click.x : cw = gameClick.x : screenRes.x
 		clickPos.x = clickPos.x * screenRes.x / vw
@@ -88,10 +138,7 @@ class InputSingleton extends Observable {
 		// click.y : ch = gameClick.y : screenRes.y
 		clickPos.y = clickPos.y * screenRes.y / vh
 
-		this.trigger(`click`, {
-			name: `click`,
-			pos: clickPos
-		})
+		return clickPos
 	}
 }
 
@@ -168,11 +215,10 @@ class Area extends GameObject {
 	}) {
 		super(options)
 		this.size = size
-		this.isCollisionObject = true
 		// bind methods
 		this._onMouseEvent = this._onMouseEvent.bind(this)
 		// event listeners
-		Input.on(`click`, this._onMouseEvent)
+		Input.on(`mousemove`, this._onMouseEvent)
 	}
 	_onMouseEvent(event) {
 		if (this.isPointWithinObject(event.pos)) {
@@ -196,6 +242,11 @@ class GameBoard extends GameObject {
 		this.data = data
 		this.grid = this._parseData(this.data)
 		this.children = this._createChildren(this.grid)
+
+		this.combination = []
+		this.tilesPlayed = []
+
+		Input.on(`mouseup`, () => this.resetState())
 	}
 	_parseData(data) {
 		// e.g. `af 2d c4`
@@ -218,22 +269,36 @@ class GameBoard extends GameObject {
 					size: new Vector(11, 11),
 					children: [tile]
 				})
-				area.on(`click`, this.select.bind(this, tile, col, rowIndex, colIndex))
+				area.on(`mousemove`, this.select.bind(this, tile, col, rowIndex, colIndex))
 				return area
 			})
 		], [])
 	}
-	select(tile) {
-		tile.color = `#ffff00`
+	select(tile, value, row, col) {
+		if (Input.isMouseDown) {
+			const pos = new Vector(col, row)
+			if (this.tilesPlayed.length) {
+				if (this.tilesPlayed.find(playedPos => playedPos.equals(pos))) {
+					return
+				}
+				const lastTilePlayed = this.tilesPlayed[this.tilesPlayed.length - 1]
+				if (pos.diff(lastTilePlayed).length() > 1) {
+					return
+				}
+			}
+			this.tilesPlayed.push(pos)
+			this.combination.push(value)
+			tile.color = `#ffff00`
+		}
+	}
+	resetState() {
+		this.children.forEach(area => area.children[0].color = `#939393`)
+		this.combination = []
+		this.tilesPlayed = []
 	}
 }
 // static assets = []
 GameBoard.prototype.assets = [`triangle`, `square`, `circle`, `cross`]
-
-function mountTree(root) {
-	const promises = root.children.map(mountTree)
-	return [root.mount(), ...promises]
-}
 
 function updateTree(deltaT, root) {
 	root.update(deltaT)
