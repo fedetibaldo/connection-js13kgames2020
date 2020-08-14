@@ -55,7 +55,7 @@ window.onresize = fillScreen
 class ImageAsset extends Image {
 	async load(src) {
 		await new Promise((resolve) => {
-			this.onload = resolve
+			this.onload = () => resolve(this)
 			this.src = src
 		})
 	}
@@ -87,13 +87,13 @@ class InputSingleton extends Observable {
 		canvas.onmousedown = (e) => this.onMouseDown(e)
 		canvas.onmouseup = (e) => this.onMouseUp(e)
 		canvas.onmousemove = (e) => this.onMouseMove(e)
+		canvas.onclick = (e) => this.onClick(e)
 
 		canvas.ontouchstart = (e) => this.onTouchStart(e)
 		canvas.ontouchend = (e) => this.onTouchEnd(e)
 		canvas.ontouchmove = (e) => this.onTouchMove(e)
 	}
 	onTouchStart(e) {
-		e = this._normalizeTouchEvent(e)
 		this.onMouseDown(e)
 	}
 	onTouchEnd(e) {
@@ -110,14 +110,12 @@ class InputSingleton extends Observable {
 	}
 	onMouseDown(e) {
 		this.isMouseDown = true
-		this.onMouseMove(e)
 		this.trigger(`mousedown`, {
 			name: `mousedown`,
 		})
 	}
 	onMouseUp(e) {
 		this.isMouseDown = false
-		this.onMouseMove(e)
 		this.trigger(`mouseup`, {
 			name: `mouseup`,
 		})
@@ -126,6 +124,13 @@ class InputSingleton extends Observable {
 		const pos = this._normalizePosition(new Vector(e.clientX, e.clientY))
 		this.trigger(`mousemove`, {
 			name: `mousemove`,
+			pos,
+		})
+	}
+	onClick(e) {
+		const pos = this._normalizePosition(new Vector(e.clientX, e.clientY))
+		this.trigger(`click`, {
+			name: `click`,
 			pos,
 		})
 	}
@@ -156,10 +161,10 @@ class GameObject extends Observable {
 		this.parent = null
 	}
 	mount() {
-		return this.children.map(child => {
+		this.children.forEach(child => {
 			child.parent = this
 			return child.mount()
-		}).flat()
+		})
 	}
 	update() {
 		// noop
@@ -178,16 +183,11 @@ class GameObject extends Observable {
 
 class Sprite extends GameObject {
 	constructor({
-		src = ``,
+		img = new ImageAsset(),
 		...options
 	}) {
 		super(options)
-		this.src = src
-		this.img = null
-	}
-	mount() {
-		this.img = new ImageAsset()
-		return [...super.mount(), this.img.load(this.src)]
+		this.img = img
 	}
 	render(ctx) {
 		ctx.drawImage(this.img, 0, 0)
@@ -215,14 +215,13 @@ class Area extends GameObject {
 	}) {
 		super(options)
 		this.size = size
-		// bind methods
-		this._onMouseEvent = this._onMouseEvent.bind(this)
 		// event listeners
-		Input.on(`mousemove`, this._onMouseEvent)
+		Input.on(`mousemove`, (e) => this.onMouseEvent(`mousemove`, e))
+		Input.on(`click`, (e) => this.onMouseEvent(`click`, e))
 	}
-	_onMouseEvent(event) {
+	onMouseEvent(name, event) {
 		if (this.isPointWithinObject(event.pos)) {
-			this.trigger(event.name, event)
+			this.trigger(name, event)
 		}
 	}
 	isPointWithinObject(point) {
@@ -233,10 +232,22 @@ class Area extends GameObject {
 	}
 }
 
-const assets = [`triangle`, `square`, `circle`, `cross`]
+const assets = {
+	triangle: `./assets/triangle.png`,
+	square: `./assets/square.png`,
+	circle: `./assets/circle.png`,
+	cross: `./assets/cross.png`,
+	button: `./assets/button.png`,
+}
 
-function getAsset(value) {
-	return `./assets/${assets[value]}.png`
+
+function getAsset(name) {
+	return assets[name]
+}
+
+function fromDataToAsset(id) {
+	const assetMap = [`triangle`, `square`, `circle`, `cross`]
+	return assetMap[id]
 }
 
 /**
@@ -259,6 +270,17 @@ function parseData(data) {
 		.split(``)
 }
 
+function serializeData(data) {
+	// data enters as an array
+	data = data.join(``)
+	// parse base-4 number
+	return parseInt(data, 4)
+		// transform to hex
+		.toString(16)
+		// 2 hexadecimal digits equal to a base-4 digit
+		.padStart(data.length / 2, `0`)
+}
+
 class Combination extends GameObject {
 	constructor({
 		data = `0`,
@@ -267,15 +289,23 @@ class Combination extends GameObject {
 		// TODO: support combinations with odd length (e.g. 3, 5...)
 		super(options)
 		this.data = data
-		this.combination = parseData(data)
+	}
+	get data() {
+		return this._data
+	}
+	set data(data) {
+		this._data = data
+		// set a clear chain of derived properties
+		this.combination = parseData(this.data)
 		this.children = this._createChildren(this.combination)
+		this.mount()
 	}
 	_createChildren(combination) {
 		const spriteW = 7
 		const padding = 2
 		const boxW = spriteW + padding
 		return combination.map((value, index) => new Sprite({
-			src: getAsset(value),
+			img: getAsset(fromDataToAsset(value)),
 			pos: new Vector(screenRes.x / 2 - ((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
 		}))
 	}
@@ -304,7 +334,7 @@ class GameBoard extends GameObject {
 					children: [
 						new Sprite({
 							pos: new Vector(2, 2),
-							src: getAsset(col),
+							img: getAsset(fromDataToAsset(col)),
 						})
 					]
 				})
@@ -317,6 +347,49 @@ class GameBoard extends GameObject {
 				return area
 			})
 		], [])
+	}
+	getValue(pos) {
+		return this.grid[pos.y][pos.x]
+	}
+	getBorderingPositions(pos) {
+		const positions = []
+		if (pos.y + 1 < this.grid.length) {
+			positions.push(new Vector(pos.x, pos.y + 1))
+		}
+		if (pos.y - 1 >= 0) {
+			positions.push(new Vector(pos.x, pos.y - 1))
+		}
+		if (pos.x + 1 < this.grid[pos.y].length) {
+			positions.push(new Vector(pos.x + 1, pos.y))
+		}
+		if (pos.x - 1 >= 0) {
+			positions.push(new Vector(pos.x - 1, pos.y))
+		}
+		return positions
+	}
+	findCombination(combination, possiblePositions = null, depth = 0) {
+		if (depth >= combination.length) {
+			return true
+		}
+		if (!possiblePositions) {
+			possiblePositions = range(this.grid.length).reduce((rows, filler, y) => {
+				return rows.concat(range(this.grid[y].length).map((filler, x) => {
+					return new Vector(x, y)
+				}))
+			}, [])
+		}
+		for (let pos of possiblePositions) {
+			if (this.getValue(pos) === combination[depth]) {
+				const solution = this.findCombination(combination, this.getBorderingPositions(pos), depth + 1)
+				if (solution) {
+					if (solution === true) {
+						return [pos]
+					} else {
+						return [pos, ...solution]
+					}
+				}
+			}
+		}
 	}
 	select(tile, value, row, col) {
 		if (Input.isMouseDown) {
@@ -336,9 +409,55 @@ class GameBoard extends GameObject {
 		}
 	}
 	resetState() {
+		this.trigger(`submit`, { combination: this.combination })
 		this.children.forEach(area => area.children[0].color = `#939393`)
 		this.combination = []
 		this.tilesPlayed = []
+	}
+}
+
+class Game extends GameObject {
+	constructor({
+		combinations = [],
+		...options
+	}) {
+		super(options)
+
+		this.combinations = combinations
+		this.turn = -1
+
+		this.display = this.children.find(child => child instanceof Combination)
+		this.board = this.children.find(child => child instanceof GameBoard)
+		this.button = this.children.find(child => child instanceof Area)
+
+		this.board.on(`submit`, (e) => this.onCombinationSubmit(e))
+		this.button.on(`click`, (e) => this.onCombinationNotFound())
+	}
+	mount() {
+		super.mount()
+		this.nextTurn()
+	}
+	get combination() {
+		return this.combinations[this.turn]
+	}
+	nextTurn() {
+		this.turn++
+		// this.board.highlightCombination()
+		// this.display.highlight()
+		this.display.data = this.combination
+	}
+	onCombinationSubmit(e) {
+		if (serializeData(e.combination) == this.combination) {
+			this.nextTurn()
+		}
+	}
+	onCombinationNotFound() {
+		if (this.board.findCombination(parseData(this.combination))) {
+			// this.board.highlightCombination()
+			// this.time.reduceBy(100)
+		} else {
+			this.nextTurn()
+		}
 	}
 }
 
@@ -366,20 +485,37 @@ function range(n) {
 	// await font.load()
 	// document.fonts.add(font)
 
-	const game = new GameObject({
+	await Promise.all(Object.keys(assets).map(async key => {
+		const img = new ImageAsset()
+		await img.load(assets[key])
+		assets[key] = img
+	}))
+
+	const game = new Game({
+		combinations: [
+			`c1`, `2a`, `95`, `42`, `dd`, `37`
+		],
 		children: [
 			new Combination({
-				data: `c1e`,
 				pos: new Vector(0, 4),
 			}),
 			new GameBoard({
 				data: `af 2d c4`,
 				pos: new Vector(4, 20),
 			}),
+			new Area({
+				pos: new Vector(4, 70),
+				size: new Vector(screenRes.x - 8, 8),
+				children: [
+					new Sprite({
+						img: getAsset(`button`)
+					})
+				]
+			}),
 		],
 	})
 
-	await Promise.all(game.mount())
+	game.mount()
 
 	window.requestAnimationFrame(loop)
 
