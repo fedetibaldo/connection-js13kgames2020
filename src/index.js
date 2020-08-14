@@ -233,6 +233,54 @@ class Area extends GameObject {
 	}
 }
 
+const assets = [`triangle`, `square`, `circle`, `cross`]
+
+function getAsset(value) {
+	return `./assets/${assets[value]}.png`
+}
+
+/**
+ * Transform stored data from base 16 to base 4
+ * @param {string} data A hexadecimal number
+ * @returns {[string]} The base-4 number, split into digits
+ * @example
+ * ```
+ * parseData(`c1`) // [`3`, `0`, `0`, `1`]
+ * ```
+ */
+function parseData(data) {
+	// parse hexadecimal number
+	return parseInt(data, 16)
+		// transform to base 4
+		.toString(4)
+		// a hexadecimal digits equals to 2 base-4 digits
+		.padStart(data.length * 2, `0`)
+		// turn it into an array
+		.split(``)
+}
+
+class Combination extends GameObject {
+	constructor({
+		data = `0`,
+		...options
+	}) {
+		// TODO: support combinations with odd length (e.g. 3, 5...)
+		super(options)
+		this.data = data
+		this.combination = parseData(data)
+		this.children = this._createChildren(this.combination)
+	}
+	_createChildren(combination) {
+		const spriteW = 7
+		const padding = 2
+		const boxW = spriteW + padding
+		return combination.map((value, index) => new Sprite({
+			src: getAsset(value),
+			pos: new Vector(screenRes.x / 2 - ((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
+		}))
+	}
+}
+
 class GameBoard extends GameObject {
 	constructor({
 		data = `0`,
@@ -240,17 +288,13 @@ class GameBoard extends GameObject {
 	}) {
 		super(options)
 		this.data = data
-		this.grid = this._parseData(this.data)
+		this.grid = this.data.split(` `).map(row => parseData(row))
 		this.children = this._createChildren(this.grid)
 
 		this.combination = []
 		this.tilesPlayed = []
 
 		Input.on(`mouseup`, () => this.resetState())
-	}
-	_parseData(data) {
-		// e.g. `af 2d c4`
-		return data.split(` `).map(row => parseInt(row, 16).toString(4).padStart(row.length * 2, `0`).split(``))
 	}
 	_createChildren(grid) {
 		return grid.reduce((children, row, rowIndex) => [
@@ -260,7 +304,7 @@ class GameBoard extends GameObject {
 					children: [
 						new Sprite({
 							pos: new Vector(2, 2),
-							src: `./assets/${this.assets[col]}.png`
+							src: getAsset(col),
 						})
 					]
 				})
@@ -297,8 +341,6 @@ class GameBoard extends GameObject {
 		this.tilesPlayed = []
 	}
 }
-// static assets = []
-GameBoard.prototype.assets = [`triangle`, `square`, `circle`, `cross`]
 
 function updateTree(deltaT, root) {
 	root.update(deltaT)
@@ -326,6 +368,10 @@ function range(n) {
 
 	const game = new GameObject({
 		children: [
+			new Combination({
+				data: `c1e`,
+				pos: new Vector(0, 4),
+			}),
 			new GameBoard({
 				data: `af 2d c4`,
 				pos: new Vector(4, 20),
