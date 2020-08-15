@@ -379,20 +379,17 @@ function serializeData(data) {
 
 class Combination extends GameObject {
 	constructor({
-		data = `0`,
 		...options
 	}) {
 		// TODO: support combinations with odd length (e.g. 3, 5...)
 		super(options)
-		this.data = data
 	}
-	get data() {
-		return this._data
+	get combination() {
+		return this._combination
 	}
-	set data(data) {
-		this._data = data
+	set combination(value) {
 		// set a clear chain of derived properties
-		this.combination = parseData(this.data)
+		this._combination = value
 		this.children = this._createChildren(this.combination)
 		this.mount()
 	}
@@ -402,7 +399,7 @@ class Combination extends GameObject {
 		const boxW = spriteW + padding
 		return combination.map((value, index) => new Sprite({
 			img: getAsset(fromDataToAsset(value)),
-			pos: new Vector(screenRes.x / 2 - ((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
+			pos: new Vector(screenRes.x / 2 - Math.floor((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
 		}))
 	}
 }
@@ -501,7 +498,7 @@ class GameBoard extends GameObject {
 	getTile(pos) {
 		return this.children[pos.x + (this.grid[0].length * pos.y)]
 	}
-	getBorderingPositions(pos) {
+	getBorderingPositions(pos, exploredPositions = []) {
 		const positions = []
 		if (pos.y + 1 < this.grid.length) {
 			positions.push(new Vector(pos.x, pos.y + 1))
@@ -515,22 +512,34 @@ class GameBoard extends GameObject {
 		if (pos.x - 1 >= 0) {
 			positions.push(new Vector(pos.x - 1, pos.y))
 		}
-		return positions
+		return positions.filter(pos =>
+			!exploredPositions.find(explored =>
+				explored.equals(pos)
+			)
+		)
 	}
-	findCombination(combination, possiblePositions = null, depth = 0) {
+	getEveryPossibleCoord() {
+		return range(this.grid.length).reduce((rows, filler, y) => {
+			return rows.concat(range(this.grid[y].length).map((filler, x) => {
+				return new Vector(x, y)
+			}))
+		}, [])
+	}
+	findCombination(combination, exploredPositions = [], possiblePositions = null, depth = 0) {
 		if (depth >= combination.length) {
 			return true
 		}
 		if (!possiblePositions) {
-			possiblePositions = range(this.grid.length).reduce((rows, filler, y) => {
-				return rows.concat(range(this.grid[y].length).map((filler, x) => {
-					return new Vector(x, y)
-				}))
-			}, [])
+			possiblePositions = this.getEveryPossibleCoord()
 		}
 		for (let pos of possiblePositions) {
-			if (this.getValue(pos) === combination[depth]) {
-				const solution = this.findCombination(combination, this.getBorderingPositions(pos), depth + 1)
+			if (this.getValue(pos) == combination[depth]) {
+				const solution = this.findCombination(
+					combination,
+					[...exploredPositions, pos],
+					this.getBorderingPositions(pos, exploredPositions),
+					depth + 1
+				)
 				if (solution) {
 					if (solution === true) {
 						return [pos]
@@ -540,6 +549,33 @@ class GameBoard extends GameObject {
 				}
 			}
 		}
+	}
+	getRandomCoords(length, exploredCoords = [], coords = null, depth = 0) {
+		if (depth >= length) {
+			return true
+		}
+		if (!coords) {
+			coords = this.getEveryPossibleCoord()
+		}
+		coords = shuffle(coords)
+		for (let coord of coords) {
+			const solution = this.getRandomCoords(
+				length,
+				[...exploredCoords, coord],
+				this.getBorderingPositions(coord, exploredCoords),
+				depth + 1
+			)
+			if (solution) {
+				if (solution === true) {
+					return [coord]
+				} else {
+					return [coord, ...solution]
+				}
+			}
+		}
+	}
+	coordsToValue(coords) {
+		return coords.map(coord => this.getValue(coord))
 	}
 	select(tile, value, row, col) {
 		if (Input.isMouseDown) {
@@ -599,13 +635,14 @@ class GameBoard extends GameObject {
 
 class Game extends GameObject {
 	constructor({
-		combinations = [],
+		comboLength,
 		...options
 	}) {
 		super(options)
 
-		this.combinations = combinations
 		this.turn = -1
+		this.combination = []
+		this.comboLength = comboLength
 
 		this.display = this.children.find(child => child instanceof Combination)
 		this.timer = this.children.find(child => child instanceof Timer)
@@ -619,24 +656,29 @@ class Game extends GameObject {
 		super.mount()
 		this.nextTurn()
 	}
-	get combination() {
-		return this.combinations[this.turn]
+	generateCombination() {
+		if (Math.random() > 2 / 3) {
+			return range(this.comboLength).map(() => Math.floor(Math.random() * 4))
+		} else {
+			return this.board.coordsToValue(this.board.getRandomCoords(this.comboLength))
+		}
 	}
 	nextTurn() {
 		this.turn++
 		// this.board.highlightCombination()
 		// this.display.highlight()
-		this.display.data = this.combination
+		this.combination = this.generateCombination()
+		this.display.combination = this.combination
 	}
 	onCombinationSubmit(e) {
-		if (serializeData(e.combination) == this.combination) {
+		if (e.combination.length == this.comboLength && serializeData(e.combination) == serializeData(this.combination)) {
 			this.nextTurn()
 		}
 	}
 	onCombinationNotFound() {
-		if (this.board.findCombination(parseData(this.combination))) {
+		if (this.board.findCombination(this.combination)) {
 			// this.board.highlightCombination()
-			this.timer.reduceBy(1000)
+			this.timer.reduceBy(2000)
 		} else {
 			this.nextTurn()
 		}
@@ -661,6 +703,27 @@ function range(n) {
 	return new Array(n).fill(null)
 }
 
+/**
+ * @see https://bost.ocks.org/mike/shuffle/
+ */
+function shuffle(array) {
+	var m = array.length, t, i;
+  
+	// While there remain elements to shuffle…
+	while (m) {
+  
+	  // Pick a remaining element…
+	  i = Math.floor(Math.random() * m--);
+  
+	  // And swap it with the current element.
+	  t = array[m];
+	  array[m] = array[i];
+	  array[i] = t;
+	}
+  
+	return array;
+  }
+
 (async function () {
 
 	await Promise.all(Object.keys(assets).map(async key => {
@@ -673,24 +736,22 @@ function range(n) {
 	}))
 
 	const game = new Game({
-		combinations: [
-			`c1`, `2a`, `95`, `42`, `dd`, `37`
-		],
+		comboLength: 4,
 		children: [
 			new Combination({
-				pos: new Vector(0, 4),
+				pos: new Vector(0, 10),
 			}),
 			new Timer({
-				pos: new Vector(4, 15),
-				duration: 30000,
+				pos: new Vector(4, 22),
+				duration: 60000,
 				length: 56,
 			}),
 			new GameBoard({
 				data: `af 2d c4`,
-				pos: new Vector(4, 20),
+				pos: new Vector(4, 30),
 			}),
 			new Area({
-				pos: new Vector(4, 70),
+				pos: new Vector(4, 80),
 				size: new Vector(screenRes.x - 8, 8),
 				children: [
 					new Sprite({
