@@ -48,41 +48,6 @@ class Color {
 	}
 }
 
-/** @type {HTMLCanvasElement} */
-const canvas = document.getElementById(`game`)
-const ctx = canvas.getContext(`2d`)
-
-const screenRes = new Vector(64, 96)
-
-/** @type {HTMLCanvasElement} */
-const subCanvas = document.createElement('canvas')
-subCanvas.width = screenRes.x
-subCanvas.height = screenRes.y
-const subCtx = subCanvas.getContext('2d')
-
-let cw, ch, vw, vh, cPos
-
-function fillScreen() {
-	const computedStyle = window.getComputedStyle(canvas)
-	cw = parseInt(computedStyle.width)
-	ch = parseInt(computedStyle.height)
-	canvas.width = cw
-	canvas.height = ch
-
-	ctx.imageSmoothingEnabled = false
-
-	const upscaleFactor = Math.min(cw / screenRes.x, ch / screenRes.y)
-
-	vw = screenRes.x * upscaleFactor
-	vh = screenRes.y * upscaleFactor
-
-	cPos = new Vector((cw - vw) / 2, (ch - vh) / 2)
-}
-
-fillScreen()
-
-window.onresize = fillScreen
-
 class Observable {
 	constructor() {
 		this.subs = {}
@@ -92,6 +57,12 @@ class Observable {
 			this.subs[event] = []
 		}
 		this.subs[event].push(cb)
+		return () => {
+			const index = this.subs[event].findIndex(sub => sub === cb)
+			if (index >= 0) {
+				this.subs[event].splice(index, 1)
+			}
+		}
 	}
 	trigger(event, args) {
 		if (this.subs[event]) {
@@ -100,6 +71,83 @@ class Observable {
 	}
 }
 
+class GameSingleton extends Observable {
+	constructor({
+		canvas = document.createElement(`canvas`),
+		viewRes = new Vector()
+	}) {
+		super()
+		this.canvas = canvas
+		this.ctx = this.canvas.getContext(`2d`)
+
+		this.viewRes = viewRes
+
+		this.subCanvas = document.createElement(`canvas`)
+		this.subCanvas.width = this.viewRes.x
+		this.subCanvas.height = this.viewRes.y
+		this.subCtx = this.subCanvas.getContext(`2d`)
+
+		this.root = null
+		this.oldT = 0
+
+		window.onresize = () => this.fitScreen()
+		this.fitScreen()
+	}
+	fitScreen() {
+		const computedStyle = window.getComputedStyle(this.canvas)
+		this.canvasSize = new Vector(
+			parseInt(computedStyle.width),
+			parseInt(computedStyle.height)
+		)
+		this.canvas.width = this.canvasSize.x
+		this.canvas.height = this.canvasSize.y
+
+		this.ctx.imageSmoothingEnabled = false
+
+		const upscaleFactor = Math.min(
+			this.canvasSize.x / this.viewRes.x,
+			this.canvasSize.y / this.viewRes.y
+		)
+
+		this.viewSize = new Vector(
+			this.viewRes.x * upscaleFactor,
+			this.viewRes.y * upscaleFactor
+		)
+
+		this.viewPos = this.canvasSize.diff(this.viewSize).mul(1/2)
+	}
+	loop(newT) {
+		window.requestAnimationFrame((newT) => this.loop(newT))
+		if (this.root) {
+			if (this.oldT) {
+				const deltaT = newT - this.oldT
+				this.trigger(`tick`, deltaT)
+
+				this.subCtx.fillStyle = 'black'
+				this.subCtx.fillRect(0, 0, this.viewRes.x, this.viewRes.y)
+
+				this.root.update(deltaT)
+				this.root.render(this.subCtx)
+
+				this.ctx.drawImage(
+					this.subCanvas,
+					0, 0, this.viewRes.x, this.viewRes.y,
+					this.viewPos.x, this.viewPos.y, this.viewSize.x, this.viewSize.y
+				)
+			}
+			this.oldT = newT
+		}
+	}
+	play() {
+		this.loop()
+	}
+}
+
+const Game = new GameSingleton({
+	canvas: document.getElementById(`game`),
+	viewRes: new Vector(64, 96)
+})
+
 class InputSingleton extends Observable {
 	constructor() {
 		super()
@@ -107,14 +155,14 @@ class InputSingleton extends Observable {
 		this.isMouseDown = false
 		this.mousePos = new Vector(0, 0)
 
-		canvas.onmousedown = (e) => this.onMouseDown(e)
-		canvas.onmouseup = (e) => this.onMouseUp(e)
-		canvas.onmousemove = (e) => this.onMouseMove(e)
-		canvas.onclick = (e) => this.onClick(e)
+		Game.canvas.onmousedown = (e) => this.onMouseDown(e)
+		Game.canvas.onmouseup = (e) => this.onMouseUp(e)
+		Game.canvas.onmousemove = (e) => this.onMouseMove(e)
+		Game.canvas.onclick = (e) => this.onClick(e)
 
-		canvas.ontouchstart = (e) => this.onTouchStart(e)
-		canvas.ontouchend = (e) => this.onTouchEnd(e)
-		canvas.ontouchmove = (e) => this.onTouchMove(e)
+		Game.canvas.ontouchstart = (e) => this.onTouchStart(e)
+		Game.canvas.ontouchend = (e) => this.onTouchEnd(e)
+		Game.canvas.ontouchmove = (e) => this.onTouchMove(e)
 	}
 	onTouchStart(e) {
 		this.onMouseDown(e)
@@ -158,42 +206,98 @@ class InputSingleton extends Observable {
 		})
 	}
 	_normalizePosition(pos) {
-		const clickPos = pos.diff(cPos)
-
-		// click.x : cw = gameClick.x : screenRes.x
-		clickPos.x = clickPos.x * screenRes.x / vw
-
-		// click.y : ch = gameClick.y : screenRes.y
-		clickPos.y = clickPos.y * screenRes.y / vh
-
+		const clickPos = pos.diff(Game.viewPos)
+		clickPos.x = clickPos.x * Game.viewRes.x / Game.viewSize.x
+		clickPos.y = clickPos.y * Game.viewRes.y / Game.viewSize.y
 		return clickPos
 	}
 }
 
 const Input = new InputSingleton()
 
+class Timer extends Observable {
+	constructor(duration = 0) {
+		super()
+		this.duration = duration
+		this.progress = 0
+		this.unsubscribe = Game.on(`tick`, (deltaT) => this.onTick(deltaT))
+	}
+	onTick(deltaT) {
+		this.progress += deltaT
+		this.trigger(`tick`, Math.min(this.progress / this.duration, 1))
+		if (this.progress > this.duration) {
+			this.trigger(`completed`)
+			this.unsubscribe()
+		}
+	}
+}
+
+class AnimateSingleton {
+	jumpOut(gameObject, { duration, delay }) {
+		const animation = new Observable()
+		const delayTimer = new Timer(delay)
+		delayTimer.on(`completed`, () => {
+			const animationTimer = new Timer(duration)
+			const base = gameObject.pos.y
+			animationTimer.on(`tick`, progress => {
+				// y = -2 + (4x - sqrt2)^2
+				gameObject.pos.y = base + 2 * ( -2 + Math.pow(4 * progress - Math.sqrt(2), 2))
+				gameObject.opacity = 1 - progress
+			})
+			animationTimer.on(`completed`, () => animation.trigger(`end`))
+		})
+		return animation
+	}
+	jumpIn(gameObject, { duration, delay }) {
+		const animation = new Observable()
+		const delayTimer = new Timer(delay)
+		gameObject.opacity = 0
+		delayTimer.on(`completed`, () => {
+			const animationTimer = new Timer(duration)
+			const base = gameObject.pos.y
+			animationTimer.on(`tick`, progress => {
+				gameObject.pos.y = base - 6 * (1 - progress)
+				gameObject.opacity = progress
+			})
+			animationTimer.on(`completed`, () => {
+				gameObject.pos.y = base
+				animation.trigger(`end`)
+			})
+		})
+		return animation
+	}
+}
+
+const Animate = new AnimateSingleton()
+
 class GameObject extends Observable {
 	constructor({
 		pos = new Vector(),
+		opacity = 1,
 		children = []
 	}) {
 		super()
 		this.pos = pos
-		this.children = children
-		// available after mount
-		this.parent = null
+		this.opacity = opacity
+		this.children = []
+		this.addChildren(children)
 	}
-	mount() {
+	addChildren(children) {
+		children.forEach(child => child.parent = this)
+		this.children = this.children.concat(children)
+	}
+	update(deltaT) {
+		this.children.forEach(child => child.update(deltaT))
+	}
+	render(ctx) {
 		this.children.forEach(child => {
-			child.parent = this
-			return child.mount()
+			ctx.save()
+			const { x, y } = child.pos
+			ctx.translate(x, y)
+			ctx.globalAlpha = child.opacity
+			child.render(ctx)
+			ctx.restore()
 		})
-	}
-	update() {
-		// noop
-	}
-	render() {
-		// noop
 	}
 	getGlobalPosition() {
 		if (this.parent) {
@@ -214,6 +318,7 @@ class Sprite extends GameObject {
 	}
 	render(ctx) {
 		ctx.drawImage(this.img, 0, 0)
+		super.render(ctx)
 	}
 }
 
@@ -228,11 +333,12 @@ class ColoredSprite extends GameObject {
 		this.baseColor = new Color(255, 255, 255)
 		this.currentColor = this.baseColor
 		this.shiftDur = 200
-	}
-	mount() {
-		const ctx = document.createElement('canvas').getContext('2d')
-		ctx.drawImage(this.img, 0, 0)
-		this.colorArray = this.toColorArray(ctx.getImageData(0, 0, 7, 7))
+		this.canvas = document.createElement('canvas')
+		this.canvas.width = 7
+		this.canvas.height = 7
+		this.ctx = this.canvas.getContext('2d')
+		this.ctx.drawImage(this.img, 0, 0)
+		this.colorArray = this.toColorArray(this.ctx.getImageData(0, 0, 7, 7))
 	}
 	update(deltaT) {
 		let targetColor = null
@@ -250,6 +356,7 @@ class ColoredSprite extends GameObject {
 			this.colorArray = this.colorArray.map(color => color.equals(this.currentColor) ? newColor : color)
 			this.currentColor = newColor
 		}
+		super.update(deltaT)
 	}
 	toColorArray(imageData) {
 		const colorArray = []
@@ -265,8 +372,9 @@ class ColoredSprite extends GameObject {
 		), 7)
 	}
 	render(ctx) {
-		const pos = this.getGlobalPosition()
-		ctx.putImageData(this.toImageData(this.colorArray), pos.x, pos.y)
+		this.ctx.putImageData(this.toImageData(this.colorArray), 0, 0)
+		ctx.drawImage(this.canvas, 0, 0)
+		super.render(ctx)
 	}
 }
 
@@ -294,6 +402,7 @@ class Tile extends GameObject {
 		if (targetColor) {
 			this.currentColor = this.currentColor.shift(targetColor, deltaT / this.shiftDur * 255)
 		}
+		super.update(deltaT)
 	}
 	render(ctx) {
 		ctx.fillStyle = `black`
@@ -301,6 +410,7 @@ class Tile extends GameObject {
 		ctx.strokeStyle = this.currentColor.toString()
 		ctx.strokeRect(0.5, 0.5, 10, 10)
 		ctx.fillRect(1, 1, 9, 9)
+		super.render(ctx)
 	}
 }
 
@@ -381,30 +491,54 @@ class Combination extends GameObject {
 	constructor({
 		...options
 	}) {
-		// TODO: support combinations with odd length (e.g. 3, 5...)
 		super(options)
+		this.on(`next`, (e) => this.onNext(e))
 	}
-	get combination() {
-		return this._combination
+	onNext({ combo, success }) {
+		if (success) {
+			this.highlight()
+		}
+		this.swap(combo)
 	}
-	set combination(value) {
-		// set a clear chain of derived properties
-		this._combination = value
-		this.children = this._createChildren(this.combination)
-		this.mount()
+	highlight() {
+		this.children.forEach(child => child.accentColor = new Color(255, 255))
+	}
+	swap(combo) {
+		// Animate old children out
+		this.children.forEach((oldChild, index) => {
+			const animation = Animate.jumpOut(oldChild, {
+				duration: 400,
+				delay: 50 * index
+			})
+			// Remove the child once the animation is complete
+			animation.on(`end`, () => {
+				const index = this.children.findIndex(child => child === oldChild)
+				this.children.splice(index, 1)
+			})
+		})
+		// Generate and add new children
+		const newRow = this._createChildren(combo)
+		this.addChildren(newRow)
+		// Animate new children in
+		newRow.forEach((newChild, index) => {
+			Animate.jumpIn(newChild, {
+				duration: 200,
+				delay: (this.children.length > 4 ? 300 : 0) + 50 * index
+			})
+		})
 	}
 	_createChildren(combination) {
 		const spriteW = 7
 		const padding = 2
 		const boxW = spriteW + padding
-		return combination.map((value, index) => new Sprite({
+		return combination.map((value, index) => new ColoredSprite({
 			img: getAsset(fromDataToAsset(value)),
-			pos: new Vector(screenRes.x / 2 - Math.floor((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
+			pos: new Vector(Game.viewRes.x / 2 - Math.floor((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
 		}))
 	}
 }
 
-class Timer extends GameObject {
+class Countdown extends GameObject {
 	constructor({
 		length = 0,
 		width = 2,
@@ -426,6 +560,7 @@ class Timer extends GameObject {
 	update(deltaT) {
 		this.progress = Math.min(this.progress + deltaT, this.duration)
 		this.trailColor.a = Math.max(this.trailColor.a - deltaT / this.trailFade * 255, 0)
+		super.update(deltaT)
 	}
 	reduceBy(time) {
 		this.trail = this.progress
@@ -452,6 +587,8 @@ class Timer extends GameObject {
 		ctx.moveTo(length, this.width / 2)
 		ctx.lineTo(trailLength, this.width / 2)
 		ctx.stroke()
+
+		super.render(ctx)
 	}
 }
 
@@ -463,7 +600,7 @@ class GameBoard extends GameObject {
 		super(options)
 		this.data = data
 		this.grid = this.data.split(` `).map(row => parseData(row))
-		this.children = this._createChildren(this.grid)
+		this.addChildren(this._createChildren(this.grid))
 
 		this.combination = []
 		this.tilesPlayed = []
@@ -630,10 +767,12 @@ class GameBoard extends GameObject {
 				drawLine(getCenterOfTile(tile), Input.mousePos.diff(this.getGlobalPosition()))
 			}
 		})
+
+		super.render(ctx)
 	}
 }
 
-class Game extends GameObject {
+class Level extends GameObject {
 	constructor({
 		comboLength,
 		...options
@@ -645,15 +784,13 @@ class Game extends GameObject {
 		this.comboLength = comboLength
 
 		this.display = this.children.find(child => child instanceof Combination)
-		this.timer = this.children.find(child => child instanceof Timer)
+		this.countdow = this.children.find(child => child instanceof Countdown)
 		this.board = this.children.find(child => child instanceof GameBoard)
 		this.button = this.children.find(child => child instanceof Area)
 
 		this.board.on(`submit`, (e) => this.onCombinationSubmit(e))
 		this.button.on(`click`, (e) => this.onCombinationNotFound())
-	}
-	mount() {
-		super.mount()
+
 		this.nextTurn()
 	}
 	generateCombination() {
@@ -663,40 +800,27 @@ class Game extends GameObject {
 			return this.board.coordsToValue(this.board.getRandomCoords(this.comboLength))
 		}
 	}
-	nextTurn() {
+	nextTurn(success) {
 		this.turn++
 		// this.board.highlightCombination()
 		// this.display.highlight()
 		this.combination = this.generateCombination()
-		this.display.combination = this.combination
+		this.display.trigger(`next`, { combo: this.combination, success })
 	}
 	onCombinationSubmit(e) {
 		if (e.combination.length == this.comboLength && serializeData(e.combination) == serializeData(this.combination)) {
-			this.nextTurn()
+			this.nextTurn(true)
 		}
 	}
 	onCombinationNotFound() {
 		if (this.board.findCombination(this.combination)) {
 			// this.board.highlightCombination()
-			this.timer.reduceBy(2000)
+			this.countdow.reduceBy(2000)
+			// this.nextTurn(false)
 		} else {
-			this.nextTurn()
+			this.nextTurn(true)
 		}
 	}
-}
-
-function updateTree(deltaT, root) {
-	root.update(deltaT)
-	root.children.forEach(child => updateTree(deltaT, child))
-}
-
-function renderTree(ctx, root) {
-	ctx.save()
-	const { x, y } = root.pos
-	ctx.translate(x, y)
-	root.render(ctx)
-	root.children.forEach(child => renderTree(ctx, child))
-	ctx.restore()
 }
 
 function range(n) {
@@ -735,13 +859,13 @@ function shuffle(array) {
 		assets[key] = img
 	}))
 
-	const game = new Game({
+	const level = new Level({
 		comboLength: 4,
 		children: [
 			new Combination({
 				pos: new Vector(0, 10),
 			}),
-			new Timer({
+			new Countdown({
 				pos: new Vector(4, 22),
 				duration: 60000,
 				length: 56,
@@ -752,41 +876,17 @@ function shuffle(array) {
 			}),
 			new Area({
 				pos: new Vector(4, 80),
-				size: new Vector(screenRes.x - 8, 8),
+				size: new Vector(Game.viewRes.x - 8, 8),
 				children: [
 					new Sprite({
 						img: getAsset(`button`)
-					})
+					}),
 				]
 			}),
 		],
 	})
 
-	game.mount()
+	Game.root = level
 
-	window.requestAnimationFrame(loop)
-
-	let oldT = 0
-	function loop(newT) {
-		window.requestAnimationFrame(loop)
-
-		if (oldT) {
-			const deltaT = newT - oldT
-
-			updateTree(deltaT, game)
-
-			subCtx.fillStyle = 'black'
-			subCtx.fillRect(0, 0, screenRes.x, screenRes.y)
-
-			renderTree(subCtx, game)
-
-			ctx.drawImage(
-				subCanvas,
-				0, 0, screenRes.x, screenRes.y,
-				cPos.x, cPos.y, vw, vh
-			)
-		}
-
-		oldT = newT
-	}
+	Game.play()
 })()
