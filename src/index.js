@@ -9,6 +9,9 @@ class Vector {
 	diff(v) {
 		return new Vector(this.x - v.x, this.y - v.y)
 	}
+	mul(s) {
+		return new Vector(this.x * s, this.y * s)
+	}
 	length() {
 		return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2))
 	}
@@ -83,6 +86,7 @@ class InputSingleton extends Observable {
 		super()
 
 		this.isMouseDown = false
+		this.mousePos = new Vector(0, 0)
 
 		canvas.onmousedown = (e) => this.onMouseDown(e)
 		canvas.onmouseup = (e) => this.onMouseUp(e)
@@ -121,17 +125,17 @@ class InputSingleton extends Observable {
 		})
 	}
 	onMouseMove(e) {
-		const pos = this._normalizePosition(new Vector(e.clientX, e.clientY))
+		this.mousePos = this._normalizePosition(new Vector(e.clientX, e.clientY))
 		this.trigger(`mousemove`, {
 			name: `mousemove`,
-			pos,
+			pos: this.mousePos,
 		})
 	}
 	onClick(e) {
-		const pos = this._normalizePosition(new Vector(e.clientX, e.clientY))
+		this.mousePos = this._normalizePosition(new Vector(e.clientX, e.clientY))
 		this.trigger(`click`, {
 			name: `click`,
-			pos,
+			pos: this.mousePos,
 		})
 	}
 	_normalizePosition(pos) {
@@ -203,8 +207,10 @@ class Tile extends GameObject {
 	}
 	render(ctx) {
 		ctx.strokeStyle = this.color
+		ctx.fillStyle = `black`
 		ctx.lineWidth = 1
 		ctx.strokeRect(0.5, 0.5, 10, 10)
+		ctx.fillRect(1, 1, 9, 9)
 	}
 }
 
@@ -353,11 +359,11 @@ class Timer extends GameObject {
 		ctx.lineTo(length, this.width / 2)
 		ctx.stroke()
 
-		const burnedLength = Math.round(this.length - this.length / this.duration * this.trail)
+		const trailLength = Math.round(this.length - this.length / this.duration * this.trail)
 		ctx.strokeStyle = `rgba(255,0,0,${this.trailOpacity})`
 		ctx.beginPath()
 		ctx.moveTo(length, this.width / 2)
-		ctx.lineTo(burnedLength, this.width / 2)
+		ctx.lineTo(trailLength, this.width / 2)
 		ctx.stroke()
 	}
 }
@@ -401,6 +407,9 @@ class GameBoard extends GameObject {
 	}
 	getValue(pos) {
 		return this.grid[pos.y][pos.x]
+	}
+	getTile(pos) {
+		return this.children[pos.x + (this.grid[0].length * pos.y)]
 	}
 	getBorderingPositions(pos) {
 		const positions = []
@@ -464,6 +473,33 @@ class GameBoard extends GameObject {
 		this.children.forEach(area => area.children[0].color = `#939393`)
 		this.combination = []
 		this.tilesPlayed = []
+	}
+	render(ctx) {
+		const getCenterOfTile = (coord) => {
+			/** @type {Area} */
+			const tile = this.getTile(coord)
+			const { pos, size } = tile
+			return pos.add(size.mul(1/2))
+		}
+		const drawLine = (from, to) => {
+			ctx.beginPath()
+			ctx.strokeStyle = `#ffff00`
+			ctx.lineWidth = 3
+			ctx.moveTo(from.x, from.y)
+			ctx.lineTo(to.x, to.y)
+			ctx.stroke()
+		}
+		this.tilesPlayed.forEach((tile, index, tiles) => {
+			if (index) {
+				// connect the previous and current tiles
+				const prevTile = tiles[index - 1]
+				drawLine(getCenterOfTile(prevTile), getCenterOfTile(tile))
+			}
+			if (index == tiles.length - 1) {
+				// connect the last element to the mouse
+				drawLine(getCenterOfTile(tile), Input.mousePos.diff(this.getGlobalPosition()))
+			}
+		})
 	}
 }
 
@@ -532,10 +568,6 @@ function range(n) {
 }
 
 (async function () {
-
-	// const font = new FontFace('Pixeled', 'url(./Pixeled.ttf)')
-	// await font.load()
-	// document.fonts.add(font)
 
 	await Promise.all(Object.keys(assets).map(async key => {
 		const img = new ImageAsset()
