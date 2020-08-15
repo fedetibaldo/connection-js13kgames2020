@@ -20,6 +20,34 @@ class Vector {
 	}
 }
 
+class Color {
+	constructor(r = 0, g = 0, b = 0, a = 255) {
+		this.r = r
+		this.g = g
+		this.b = b
+		this.a = a
+	}
+	equals(c) {
+		return this.r == c.r && this.g == c.g && this.b == c.b && this.a == c.a
+	}
+	shift(to, amount) {
+		const args = [
+			[this.r, to.r],
+			[this.g, to.g],
+			[this.b, to.b],
+			[this.a, to.a],
+		].map(([now, target]) => {
+			const dir = Math.sign(target - now)
+			const fun = dir > 0 ? Math.min : Math.max
+			return fun(now + (amount * dir), target)
+		})
+		return new Color(...args)
+	}
+	toString() {
+		return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a / 255})`
+	}
+}
+
 /** @type {HTMLCanvasElement} */
 const canvas = document.getElementById(`game`)
 const ctx = canvas.getContext(`2d`)
@@ -178,7 +206,7 @@ class GameObject extends Observable {
 
 class Sprite extends GameObject {
 	constructor({
-		img = new ImageAsset(),
+		img = new Image(),
 		...options
 	}) {
 		super(options)
@@ -189,17 +217,88 @@ class Sprite extends GameObject {
 	}
 }
 
+class ColoredSprite extends GameObject {
+	constructor({
+		img = new Image(),
+		...options
+	}) {
+		super(options)
+		this.img = img
+		this.accentColor = null
+		this.baseColor = new Color(255, 255, 255)
+		this.currentColor = this.baseColor
+		this.shiftDur = 200
+	}
+	mount() {
+		const ctx = document.createElement('canvas').getContext('2d')
+		ctx.drawImage(this.img, 0, 0)
+		this.colorArray = this.toColorArray(ctx.getImageData(0, 0, 7, 7))
+	}
+	update(deltaT) {
+		let targetColor = null
+		if (this.accentColor) {
+			if (!this.currentColor.equals(this.accentColor)) {
+				targetColor = this.accentColor
+			}
+		} else {
+			if (!this.currentColor.equals(this.baseColor)) {
+				targetColor = this.baseColor
+			}
+		}
+		if (targetColor) {
+			const newColor = this.currentColor.shift(targetColor, deltaT / this.shiftDur * 255)
+			this.colorArray = this.colorArray.map(color => color.equals(this.currentColor) ? newColor : color)
+			this.currentColor = newColor
+		}
+	}
+	toColorArray(imageData) {
+		const colorArray = []
+		const data = imageData.data
+		for (let i = 0; i < data.length; i += 4) {
+			colorArray.push(new Color(data[i], data[i + 1], data[i + 2], data[i + 3]))
+		}
+		return colorArray
+	}
+	toImageData(colorArray) {
+		return new ImageData(Uint8ClampedArray.from(
+			colorArray.reduce((data, color) => [...data, color.r, color.g, color.b, color.a], [])
+		), 7)
+	}
+	render(ctx) {
+		const pos = this.getGlobalPosition()
+		ctx.putImageData(this.toImageData(this.colorArray), pos.x, pos.y)
+	}
+}
+
 class Tile extends GameObject {
 	constructor({
 		...options
 	}) {
 		super(options)
-		this.color = `#939393`
+		this.accentColor = null
+		this.baseColor = new Color(147, 147, 147)
+		this.currentColor = this.baseColor
+		this.shiftDur = 400
+	}
+	update(deltaT) {
+		let targetColor = null
+		if (this.accentColor) {
+			if (!this.currentColor.equals(this.accentColor)) {
+				targetColor = this.accentColor
+			}
+		} else {
+			if (!this.currentColor.equals(this.baseColor)) {
+				targetColor = this.baseColor
+			}
+		}
+		if (targetColor) {
+			this.currentColor = this.currentColor.shift(targetColor, deltaT / this.shiftDur * 255)
+		}
 	}
 	render(ctx) {
-		ctx.strokeStyle = this.color
 		ctx.fillStyle = `black`
 		ctx.lineWidth = 1
+		ctx.strokeStyle = this.currentColor.toString()
 		ctx.strokeRect(0.5, 0.5, 10, 10)
 		ctx.fillRect(1, 1, 9, 9)
 	}
@@ -223,8 +322,8 @@ class Area extends GameObject {
 	}
 	isPointWithinObject(point) {
 		const gPos = this.getGlobalPosition()
-		const {x, y} = gPos
-		const {x: w, y: h} = gPos.add(this.size)
+		const { x, y } = gPos
+		const { x: w, y: h } = gPos.add(this.size)
 		return point.x > x && point.x < w && point.y > y && point.y < h
 	}
 }
@@ -324,17 +423,17 @@ class Timer extends GameObject {
 		this.width = width
 
 		this.trail = 0
-		this.trailOpacity = 0
+		this.trailColor = new Color(255, 0, 0, 0)
 		this.trailFade = 400
 	}
 	update(deltaT) {
 		this.progress = Math.min(this.progress + deltaT, this.duration)
-		this.trailOpacity = Math.max(this.trailOpacity - deltaT / this.trailFade, 0)
+		this.trailColor.a = Math.max(this.trailColor.a - deltaT / this.trailFade * 255, 0)
 	}
 	reduceBy(time) {
 		this.trail = this.progress
 		this.update(time)
-		this.trailOpacity = 1
+		this.trailColor.a = 255
 	}
 	/**
 	 * @param {CanvasRenderingContext2D} ctx 
@@ -351,7 +450,7 @@ class Timer extends GameObject {
 		ctx.stroke()
 
 		const trailLength = Math.round(this.length - this.length / this.duration * this.trail)
-		ctx.strokeStyle = `rgba(255,0,0,${this.trailOpacity})`
+		ctx.strokeStyle = this.trailColor.toString()
 		ctx.beginPath()
 		ctx.moveTo(length, this.width / 2)
 		ctx.lineTo(trailLength, this.width / 2)
@@ -380,7 +479,7 @@ class GameBoard extends GameObject {
 			...row.map((col, colIndex) => {
 				const tile = new Tile({
 					children: [
-						new Sprite({
+						new ColoredSprite({
 							pos: new Vector(2, 2),
 							img: getAsset(fromDataToAsset(col)),
 						})
@@ -456,12 +555,16 @@ class GameBoard extends GameObject {
 			}
 			this.tilesPlayed.push(pos)
 			this.combination.push(value)
-			tile.color = `#ffff00`
+			tile.accentColor = new Color(255, 255)
+			tile.children[0].accentColor = new Color(255, 255)
 		}
 	}
 	resetState() {
 		this.trigger(`submit`, { combination: this.combination })
-		this.children.forEach(area => area.children[0].color = `#939393`)
+		this.children.forEach(area => {
+			area.children[0].accentColor = null
+			area.children[0].children[0].accentColor = null
+		})
 		this.combination = []
 		this.tilesPlayed = []
 	}
@@ -470,7 +573,7 @@ class GameBoard extends GameObject {
 			/** @type {Area} */
 			const tile = this.getTile(coord)
 			const { pos, size } = tile
-			return pos.add(size.mul(1/2))
+			return pos.add(size.mul(1 / 2))
 		}
 		const drawLine = (from, to) => {
 			ctx.beginPath()
