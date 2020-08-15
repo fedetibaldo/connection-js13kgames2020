@@ -55,15 +55,6 @@ fillScreen()
 
 window.onresize = fillScreen
 
-class ImageAsset extends Image {
-	async load(src) {
-		await new Promise((resolve) => {
-			this.onload = () => resolve(this)
-			this.src = src
-		})
-	}
-}
-
 class Observable {
 	constructor() {
 		this.subs = {}
@@ -570,8 +561,11 @@ function range(n) {
 (async function () {
 
 	await Promise.all(Object.keys(assets).map(async key => {
-		const img = new ImageAsset()
-		await img.load(assets[key])
+		const img = new Image()
+		await new Promise((resolve) => {
+			img.onload = resolve
+			img.src = assets[key]
+		})
 		assets[key] = img
 	}))
 
