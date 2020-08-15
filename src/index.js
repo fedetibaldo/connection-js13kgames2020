@@ -571,21 +571,30 @@ class Countdown extends GameObject {
 	 * @param {CanvasRenderingContext2D} ctx 
 	 */
 	render(ctx) {
-		ctx.strokeStyle = this.color
 		ctx.lineWidth = this.width
 
-		const length = Math.round(this.length - this.length / this.duration * this.progress)
+		ctx.strokeStyle = this.trailColor.toString()
+
+		const trailLength = this.length - this.length / this.duration * this.trail
+
+		const startTrail = Math.round((this.length - trailLength) / 2)
+		const endTrail = Math.round(trailLength + (this.length - trailLength) / 2)
 
 		ctx.beginPath()
-		ctx.moveTo(0, this.width / 2)
-		ctx.lineTo(length, this.width / 2)
+		ctx.moveTo(startTrail, this.width / 2)
+		ctx.lineTo(endTrail, this.width / 2)
 		ctx.stroke()
 
-		const trailLength = Math.round(this.length - this.length / this.duration * this.trail)
-		ctx.strokeStyle = this.trailColor.toString()
+		ctx.strokeStyle = this.color
+
+		const progressLength = this.length - this.length / this.duration * this.progress
+
+		const startProgress = Math.round((this.length - progressLength) / 2)
+		const endProgress = Math.round(progressLength + (this.length - progressLength) / 2)
+
 		ctx.beginPath()
-		ctx.moveTo(length, this.width / 2)
-		ctx.lineTo(trailLength, this.width / 2)
+		ctx.moveTo(startProgress, this.width / 2)
+		ctx.lineTo(endProgress, this.width / 2)
 		ctx.stroke()
 
 		super.render(ctx)
@@ -863,19 +872,19 @@ function shuffle(array) {
 		comboLength: 4,
 		children: [
 			new Combination({
-				pos: new Vector(0, 10),
+				pos: new Vector(0, 13),
 			}),
 			new Countdown({
-				pos: new Vector(4, 22),
+				pos: new Vector(4, 26),
 				duration: 60000,
 				length: 56,
 			}),
 			new GameBoard({
 				data: `af 2d c4`,
-				pos: new Vector(4, 30),
+				pos: new Vector(4, 34),
 			}),
 			new Area({
-				pos: new Vector(4, 80),
+				pos: new Vector(4, 81),
 				size: new Vector(Game.viewRes.x - 8, 8),
 				children: [
 					new Sprite({
