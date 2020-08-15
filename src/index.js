@@ -311,6 +311,57 @@ class Combination extends GameObject {
 	}
 }
 
+class Timer extends GameObject {
+	constructor({
+		length = 0,
+		width = 2,
+		duration = 0,
+		color = `white`,
+		...options
+	}) {
+		super(options)
+		this.length = length
+		this.time = this.duration = duration
+		this.progress = 0
+		this.color = color
+		this.width = width
+
+		this.trail = 0
+		this.trailOpacity = 0
+		this.trailFade = 400
+	}
+	update(deltaT) {
+		this.progress = Math.min(this.progress + deltaT, this.duration)
+		this.trailOpacity = Math.max(this.trailOpacity - deltaT / this.trailFade, 0)
+	}
+	reduceBy(time) {
+		this.trail = this.progress
+		this.update(time)
+		this.trailOpacity = 1
+	}
+	/**
+	 * @param {CanvasRenderingContext2D} ctx 
+	 */
+	render(ctx) {
+		ctx.strokeStyle = this.color
+		ctx.lineWidth = this.width
+
+		const length = Math.round(this.length - this.length / this.duration * this.progress)
+
+		ctx.beginPath()
+		ctx.moveTo(0, this.width / 2)
+		ctx.lineTo(length, this.width / 2)
+		ctx.stroke()
+
+		const burnedLength = Math.round(this.length - this.length / this.duration * this.trail)
+		ctx.strokeStyle = `rgba(255,0,0,${this.trailOpacity})`
+		ctx.beginPath()
+		ctx.moveTo(length, this.width / 2)
+		ctx.lineTo(burnedLength, this.width / 2)
+		ctx.stroke()
+	}
+}
+
 class GameBoard extends GameObject {
 	constructor({
 		data = `0`,
@@ -427,6 +478,7 @@ class Game extends GameObject {
 		this.turn = -1
 
 		this.display = this.children.find(child => child instanceof Combination)
+		this.timer = this.children.find(child => child instanceof Timer)
 		this.board = this.children.find(child => child instanceof GameBoard)
 		this.button = this.children.find(child => child instanceof Area)
 
@@ -454,7 +506,7 @@ class Game extends GameObject {
 	onCombinationNotFound() {
 		if (this.board.findCombination(parseData(this.combination))) {
 			// this.board.highlightCombination()
-			// this.time.reduceBy(100)
+			this.timer.reduceBy(1000)
 		} else {
 			this.nextTurn()
 		}
@@ -499,6 +551,11 @@ function range(n) {
 			new Combination({
 				pos: new Vector(0, 4),
 			}),
+			new Timer({
+				pos: new Vector(4, 15),
+				duration: 30000,
+				length: 56,
+			}),
 			new GameBoard({
 				data: `af 2d c4`,
 				pos: new Vector(4, 20),
@@ -524,7 +581,7 @@ function range(n) {
 		window.requestAnimationFrame(loop)
 
 		if (oldT) {
-			const deltaT = (newT - oldT) / 1000
+			const deltaT = newT - oldT
 
 			updateTree(deltaT, game)
 
