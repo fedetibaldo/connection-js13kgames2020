@@ -232,39 +232,49 @@ class Timer extends Observable {
 	}
 }
 
-class AnimateSingleton {
-	jumpOut(gameObject, { duration, delay }) {
-		const animation = new Observable()
+class GameAnimation extends Observable {
+	constructor({ duration, delay = 0 }) {
+		super()
 		const delayTimer = new Timer(delay)
 		delayTimer.on(`completed`, () => {
+			this.trigger(`start`)
 			const animationTimer = new Timer(duration)
-			const base = gameObject.pos.y
-			animationTimer.on(`tick`, progress => {
-				// y = -2 + (4x - sqrt2)^2
-				gameObject.pos.y = base + 2 * ( -2 + Math.pow(4 * progress - Math.sqrt(2), 2))
-				gameObject.opacity = 1 - progress
-			})
-			animationTimer.on(`completed`, () => animation.trigger(`end`))
+			animationTimer.on(`tick`, (progress) => this.trigger(`progress`, progress))
+			animationTimer.on(`completed`, () => this.trigger(`end`))
+		})
+	}
+}
+
+class AnimateSingleton {
+	jumpOut(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		let base = 0
+		animation.on(`start`, () => base = gameObject.pos.y)
+		animation.on(`progress`, progress => {
+			// y = -2 + (4x - sqrt2)^2
+			gameObject.pos.y = base + 2 * ( -2 + Math.pow(4 * progress - Math.sqrt(2), 2))
+			gameObject.opacity = 1 - progress
 		})
 		return animation
 	}
 	jumpIn(gameObject, { duration, delay }) {
-		const animation = new Observable()
-		const delayTimer = new Timer(delay)
+		const animation = new GameAnimation({ duration, delay })
 		gameObject.opacity = 0
-		delayTimer.on(`completed`, () => {
-			const animationTimer = new Timer(duration)
-			const base = gameObject.pos.y
-			animationTimer.on(`tick`, progress => {
-				gameObject.pos.y = base - 6 * (1 - progress)
-				gameObject.opacity = progress
-			})
-			animationTimer.on(`completed`, () => {
-				gameObject.pos.y = base
-				animation.trigger(`end`)
-			})
+		let base = 0
+		animation.on(`start`, () => base = gameObject.pos.y)
+		animation.on(`progress`, progress => {
+			gameObject.pos.y = base - 6 * (1 - progress)
+			gameObject.opacity = progress
 		})
 		return animation
+	}
+	shake(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		let base = 0
+		animation.on(`start`, () => base = gameObject.pos.x)
+		animation.on(`progress`, progress => {
+			gameObject.pos.x = base + 1 * Math.sin(2 * Math.PI * progress)
+		})
 	}
 }
 
@@ -742,7 +752,7 @@ class GameBoard extends GameObject {
 		}
 	}
 	resetState() {
-		this.trigger(`submit`, { combination: this.combination })
+		this.trigger(`submit`, { combo: this.combination, coords: this.tilesPlayed })
 		this.children.forEach(area => {
 			area.children[0].accentColor = null
 			area.children[0].children[0].accentColor = null
@@ -816,16 +826,18 @@ class Level extends GameObject {
 		this.combination = this.generateCombination()
 		this.display.trigger(`next`, { combo: this.combination, success })
 	}
-	onCombinationSubmit(e) {
-		if (e.combination.length == this.comboLength && serializeData(e.combination) == serializeData(this.combination)) {
+	onCombinationSubmit({ combo, coords }) {
+		if (combo.length == this.comboLength && serializeData(combo) == serializeData(this.combination)) {
 			this.nextTurn(true)
+		} else {
+			coords.map(coord => Animate.shake(this.board.getTile(coord), { duration: 200 }))
 		}
 	}
 	onCombinationNotFound() {
 		if (this.board.findCombination(this.combination)) {
-			// this.board.highlightCombination()
 			this.countdow.reduceBy(2000)
-			// this.nextTurn(false)
+			Animate.shake(this.display, { duration: 200 })
+			Animate.shake(this.board, { duration: 200 })
 		} else {
 			this.nextTurn(true)
 		}
