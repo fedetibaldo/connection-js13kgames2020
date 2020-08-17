@@ -468,7 +468,7 @@ class Tile extends Area {
 	}) {
 		super(options)
 		this.accentColor = null
-		this.baseColor = new Color(147, 147, 147)
+		this.baseColor = new Color(92, 92, 92)
 		this.currentColor = this.baseColor
 		this.shiftDur = 400
 	}
@@ -504,6 +504,7 @@ const assets = {
 	circle: `./assets/circle.png`,
 	cross: `./assets/cross.png`,
 	button: `./assets/button.png`,
+	buttonPressed: `./assets/button-pressed.png`,
 }
 
 
@@ -634,24 +635,24 @@ class Countdown extends GameObject {
 	render(ctx) {
 		ctx.lineWidth = this.width
 
-		ctx.strokeStyle = this.trailColor.toString()
-
-		const trailLength = this.length - this.length / this.duration * this.trail
-
-		const startTrail = Math.round((this.length - trailLength) / 2)
-		const endTrail = Math.round(trailLength + (this.length - trailLength) / 2)
-
-		ctx.beginPath()
-		ctx.moveTo(startTrail, this.width / 2)
-		ctx.lineTo(endTrail, this.width / 2)
-		ctx.stroke()
-
 		ctx.strokeStyle = this.color
 
 		const progressLength = this.length - this.length / this.duration * this.progress
 
 		const startProgress = Math.round((this.length - progressLength) / 2)
 		const endProgress = Math.round(progressLength + (this.length - progressLength) / 2)
+
+		ctx.beginPath()
+		ctx.moveTo(startProgress, this.width / 2)
+		ctx.lineTo(endProgress, this.width / 2)
+		ctx.stroke()
+
+		ctx.strokeStyle = this.trailColor.toString()
+
+		const trailLength = this.length - this.length / this.duration * this.trail
+
+		// const startTrail = Math.round((this.length - trailLength) / 2)
+		// const endTrail = Math.round(trailLength + (this.length - trailLength) / 2)
 
 		ctx.beginPath()
 		ctx.moveTo(startProgress, this.width / 2)
@@ -1014,8 +1015,27 @@ function shuffle(array) {
 		assets[key] = img
 	}))
 
+	const button = new Area({
+		pos: new Vector(4, 81),
+		size: new Vector(Game.viewRes.x - 8, 8),
+		children: [
+			new Sprite({
+				img: getAsset(`button`)
+			}),
+		]
+	})
+	button.on(`click`, () => {
+		button.children[0].img = getAsset(`buttonPressed`)
+		button.pos = button.pos.add(new Vector(1, 1))
+		const releaseTimer = new Timer(100)
+		releaseTimer.on(`completed`, () => {
+			button.children[0].img = getAsset(`button`)
+			button.pos = button.pos.diff(new Vector(1, 1))
+		})
+	})
+
 	const level = new Level({
-		comboLength: 5,
+		comboLength: 4,
 		children: [
 			new Combination({
 				pos: new Vector(0, 13),
@@ -1029,15 +1049,7 @@ function shuffle(array) {
 				data: `af 2d c4`,
 				pos: new Vector(4, 34),
 			}),
-			new Area({
-				pos: new Vector(4, 81),
-				size: new Vector(Game.viewRes.x - 8, 8),
-				children: [
-					new Sprite({
-						img: getAsset(`button`)
-					}),
-				]
-			}),
+			button,
 		],
 	})
 
