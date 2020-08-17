@@ -69,6 +69,9 @@ class Observable {
 			this.subs[event].forEach(sub => sub(args))
 		}
 	}
+	destroy() {
+		this.subs = []
+	}
 }
 
 class GameSingleton extends Observable {
@@ -114,7 +117,7 @@ class GameSingleton extends Observable {
 			this.viewRes.y * upscaleFactor
 		)
 
-		this.viewPos = this.canvasSize.diff(this.viewSize).mul(1/2)
+		this.viewPos = this.canvasSize.diff(this.viewSize).mul(1 / 2)
 	}
 	loop(newT) {
 		window.requestAnimationFrame((newT) => this.loop(newT))
@@ -230,6 +233,16 @@ class Timer extends Observable {
 			this.unsubscribe()
 		}
 	}
+	static all(timers) {
+		const watcher = new Observable()
+		let completed = 0
+		timers.forEach(timer => timer.on(`completed`, () => {
+			if (++completed == timers.length) {
+				watcher.trigger(`completed`)
+			}
+		}))
+		return watcher
+	}
 }
 
 class GameAnimation extends Observable {
@@ -252,7 +265,7 @@ class AnimateSingleton {
 		animation.on(`start`, () => base = gameObject.pos.y)
 		animation.on(`progress`, progress => {
 			// y = -2 + (4x - sqrt2)^2
-			gameObject.pos.y = base + 2 * ( -2 + Math.pow(4 * progress - Math.sqrt(2), 2))
+			gameObject.pos.y = base + 2 * (-2 + Math.pow(4 * progress - Math.sqrt(2), 2))
 			gameObject.opacity = 1 - progress
 		})
 		return animation
@@ -275,6 +288,35 @@ class AnimateSingleton {
 		animation.on(`progress`, progress => {
 			gameObject.pos.x = base + 1 * Math.sin(2 * Math.PI * progress)
 		})
+		return animation
+	}
+	explode(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		const { scale, pos, size } = gameObject
+		animation.on(`progress`, progress => {
+			const scaleFactor = 1.25
+			gameObject.pos = pos.diff(size.mul(progress * scaleFactor / 2))
+			gameObject.scale = scale + progress * scaleFactor
+			gameObject.opacity = 1 - progress
+		})
+		return animation
+	}
+	fadeIn(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		gameObject.opacity = 0
+		animation.on(`progress`, progress => {
+			gameObject.opacity = progress
+		})
+		return animation
+	}
+	slide(gameObject, { duration, delay, to }) {
+		const animation = new GameAnimation({ duration, delay })
+		let { pos } = gameObject
+		pos = new Vector(pos.x, pos.y)
+		animation.on(`progress`, progress => {
+			gameObject.pos = pos.add(to.diff(pos).mul(progress))
+		})
+		return animation
 	}
 }
 
@@ -284,17 +326,22 @@ class GameObject extends Observable {
 	constructor({
 		pos = new Vector(),
 		opacity = 1,
+		scale = 1,
 		children = []
 	}) {
 		super()
 		this.pos = pos
 		this.opacity = opacity
+		this.scale = scale
 		this.children = []
 		this.addChildren(children)
 	}
 	addChildren(children) {
-		children.forEach(child => child.parent = this)
-		this.children = this.children.concat(children)
+		children.forEach(child => this.addChild(child))
+	}
+	addChild(child, index = this.children.length) {
+		child.parent = this
+		this.children[index] = child
 	}
 	update(deltaT) {
 		this.children.forEach(child => child.update(deltaT))
@@ -304,7 +351,8 @@ class GameObject extends Observable {
 			ctx.save()
 			const { x, y } = child.pos
 			ctx.translate(x, y)
-			ctx.globalAlpha = child.opacity
+			ctx.scale(child.scale, child.scale);
+			ctx.globalAlpha = child.opacity * this.opacity
 			child.render(ctx)
 			ctx.restore()
 		})
@@ -327,7 +375,7 @@ class Sprite extends GameObject {
 		this.img = img
 	}
 	render(ctx) {
-		ctx.drawImage(this.img, 0, 0)
+		ctx.drawImage(this.img, 0, 0,)
 		super.render(ctx)
 	}
 }
@@ -335,20 +383,22 @@ class Sprite extends GameObject {
 class ColoredSprite extends GameObject {
 	constructor({
 		img = new Image(),
+		size = new Vector(),
 		...options
 	}) {
 		super(options)
 		this.img = img
+		this.size = size
 		this.accentColor = null
-		this.baseColor = new Color(255, 255, 255)
-		this.currentColor = this.baseColor
 		this.shiftDur = 200
 		this.canvas = document.createElement('canvas')
-		this.canvas.width = 7
-		this.canvas.height = 7
+		this.canvas.width = this.size.x
+		this.canvas.height = this.size.y
 		this.ctx = this.canvas.getContext('2d')
 		this.ctx.drawImage(this.img, 0, 0)
 		this.colorArray = this.toColorArray(this.ctx.getImageData(0, 0, 7, 7))
+		this.baseColor = this.colorArray.find(color => color.a == 255)
+		this.currentColor = this.baseColor
 	}
 	update(deltaT) {
 		let targetColor = null
@@ -363,7 +413,7 @@ class ColoredSprite extends GameObject {
 		}
 		if (targetColor) {
 			const newColor = this.currentColor.shift(targetColor, deltaT / this.shiftDur * 255)
-			this.colorArray = this.colorArray.map(color => color.equals(this.currentColor) ? newColor : color)
+			this.colorArray = this.colorArray.map(color => color.a == 255 ? newColor : color)
 			this.currentColor = newColor
 		}
 		super.update(deltaT)
@@ -383,12 +433,36 @@ class ColoredSprite extends GameObject {
 	}
 	render(ctx) {
 		this.ctx.putImageData(this.toImageData(this.colorArray), 0, 0)
-		ctx.drawImage(this.canvas, 0, 0)
+		ctx.drawImage(this.canvas, 0, 0, this.size.x, this.size.y)
 		super.render(ctx)
 	}
 }
 
-class Tile extends GameObject {
+class Area extends GameObject {
+	constructor({
+		size,
+		...options
+	}) {
+		super(options)
+		this.size = size
+		// event listeners
+		Input.on(`mousemove`, (e) => this.onMouseEvent(`mousemove`, e))
+		Input.on(`click`, (e) => this.onMouseEvent(`click`, e))
+	}
+	onMouseEvent(name, event) {
+		if (this.isPointWithinObject(event.pos)) {
+			this.trigger(name, event)
+		}
+	}
+	isPointWithinObject(point) {
+		const gPos = this.getGlobalPosition()
+		const { x, y } = gPos
+		const { x: w, y: h } = gPos.add(this.size)
+		return point.x > x && point.x < w && point.y > y && point.y < h
+	}
+}
+
+class Tile extends Area {
 	constructor({
 		...options
 	}) {
@@ -418,33 +492,9 @@ class Tile extends GameObject {
 		ctx.fillStyle = `black`
 		ctx.lineWidth = 1
 		ctx.strokeStyle = this.currentColor.toString()
-		ctx.strokeRect(0.5, 0.5, 10, 10)
-		ctx.fillRect(1, 1, 9, 9)
+		ctx.strokeRect(0.5, 0.5, this.size.x - 1, this.size.y - 1)
+		ctx.fillRect(1, 1, this.size.x - 2, this.size.y - 2)
 		super.render(ctx)
-	}
-}
-
-class Area extends GameObject {
-	constructor({
-		size,
-		...options
-	}) {
-		super(options)
-		this.size = size
-		// event listeners
-		Input.on(`mousemove`, (e) => this.onMouseEvent(`mousemove`, e))
-		Input.on(`click`, (e) => this.onMouseEvent(`click`, e))
-	}
-	onMouseEvent(name, event) {
-		if (this.isPointWithinObject(event.pos)) {
-			this.trigger(name, event)
-		}
-	}
-	isPointWithinObject(point) {
-		const gPos = this.getGlobalPosition()
-		const { x, y } = gPos
-		const { x: w, y: h } = gPos.add(this.size)
-		return point.x > x && point.x < w && point.y > y && point.y < h
 	}
 }
 
@@ -543,6 +593,7 @@ class Combination extends GameObject {
 		const boxW = spriteW + padding
 		return combination.map((value, index) => new ColoredSprite({
 			img: getAsset(fromDataToAsset(value)),
+			size: new Vector(7, 7),
 			pos: new Vector(Game.viewRes.x / 2 - Math.floor((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
 		}))
 	}
@@ -629,30 +680,101 @@ class GameBoard extends GameObject {
 	_createChildren(grid) {
 		return grid.reduce((children, row, rowIndex) => [
 			...children,
-			...row.map((col, colIndex) => {
-				const tile = new Tile({
-					children: [
-						new ColoredSprite({
-							pos: new Vector(2, 2),
-							img: getAsset(fromDataToAsset(col)),
-						})
-					]
-				})
-				const area = new Area({
-					pos: new Vector(15 * colIndex, 15 * rowIndex),
-					size: new Vector(11, 11),
-					children: [tile]
-				})
-				area.on(`mousemove`, this.select.bind(this, tile, col, rowIndex, colIndex))
-				return area
-			})
+			...row.map((col, colIndex) => this._createChild(new Vector(colIndex, rowIndex), col))
 		], [])
 	}
-	getValue(pos) {
-		return this.grid[pos.y][pos.x]
+	_createChild(coord, value) {
+		const tile = new Tile({
+			pos: new Vector(15 * coord.x, 15 * coord.y),
+			size: new Vector(11, 11),
+			children: [
+				new ColoredSprite({
+					pos: new Vector(2, 2),
+					size: new Vector(7, 7),
+					img: getAsset(fromDataToAsset(value)),
+				})
+			]
+		})
+		tile.on(`mousemove`, this.select.bind(this, tile, value))
+		return tile
 	}
-	getTile(pos) {
-		return this.children[pos.x + (this.grid[0].length * pos.y)]
+	replaceTiles(coords, values = [0,0,0,0]) {
+		// group by column
+		const deletionsByColumn = coords.reduce((deletions, coord) => {
+			deletions[coord.x].push(coord)
+			return deletions
+		}, range(4).map(() => []))
+		let valueIndex = 0
+		// it's difficult to explain
+		deletionsByColumn.forEach((deletions, x) => {
+			// skip column if untouched
+			if (!deletions.length) {
+				return
+			}
+			// for each deletion, create a new child
+			const additions = deletions.map((coord, depth) => {
+				// animate out
+				const tile = this.getTile(coord)
+				tile.accentColor = new Color(255, 255)
+				tile.children[0].accentColor = new Color(255, 255)
+				const outAnimation = Animate.explode(this.getTile(coord), { duration: 200 })
+				// move to the bottom of the array and schedule for removal
+				const index = this.getIndexFromCoord(coord)
+				this.children[index] = null
+				this.children[this.children.length] = tile
+				outAnimation.on(`end`, () => {
+					tile.destroy()
+					this.children.splice(this.children.length - 1, 1)
+				})
+				// create a new child to replace the soon-to-be-missing tile
+				const startCoord = new Vector(x, -(deletions.length - depth))
+				return this._createChild(startCoord, values[valueIndex++])
+			})
+			// query the remaining coordinates (the deletions have been moved to the bottom of the array by this point)
+			const remainingTiles = range(3)
+				.map(index => this.getTile(new Vector(x, index)))
+				// remove deleted tiles
+				.filter(Boolean)
+			// move the tiles to their new coordinate
+			additions.concat(remainingTiles).forEach((tile, index) => {
+				// move to the right position in the children array
+				const newCoord = new Vector(x, index)
+				const childIndex = this.getIndexFromCoord(newCoord)
+				if (index < additions.length) {
+					this.addChild(tile, childIndex)
+					Animate.fadeIn(tile, {
+						duration: 200 + 100 * deletions.length,
+						delay: (3 - (index + 1)) * 50,
+					})
+				} else {
+					this.children[childIndex] = tile
+				}
+				// move to the right physical location
+				Animate.slide(tile, {
+					duration: 200 + 100 * deletions.length,
+					delay: (3 - (index + 1)) * 50,
+					to: new Vector(x * 15, index * 15)
+				})
+			})
+		})
+	}
+	getIndexFromCoord(coord) {
+		return coord.x + (4 * coord.y)
+	}
+	getCoordFromIndex(index) {
+		return new Vector(index % 4, Math.floor(index / 4))
+	}
+	getIndexFromTile(tile) {
+		return this.children.findIndex(child => child === tile)
+	}
+	getTile(coord) {
+		return this.children[this.getIndexFromCoord(coord)]
+	}
+	getCoord(tile) {
+		return this.getCoordFromIndex(this.getIndexFromTile(tile))
+	}
+	getValue(coord) {
+		return Object.keys(assets).findIndex(key => assets[key] == this.getTile(coord).children[0].img)
 	}
 	getBorderingPositions(pos, exploredPositions = []) {
 		const positions = []
@@ -733,30 +855,30 @@ class GameBoard extends GameObject {
 	coordsToValue(coords) {
 		return coords.map(coord => this.getValue(coord))
 	}
-	select(tile, value, row, col) {
+	select(tile, value) {
 		if (Input.isMouseDown) {
-			const pos = new Vector(col, row)
+			const coord = this.getCoord(tile)
 			if (this.tilesPlayed.length) {
-				if (this.tilesPlayed.find(playedPos => playedPos.equals(pos))) {
+				if (this.tilesPlayed.find(playedPos => playedPos.equals(coord))) {
 					return
 				}
 				const lastTilePlayed = this.tilesPlayed[this.tilesPlayed.length - 1]
-				if (pos.diff(lastTilePlayed).length() > 1) {
+				if (coord.diff(lastTilePlayed).length() > 1) {
 					return
 				}
 			}
-			this.tilesPlayed.push(pos)
+			this.tilesPlayed.push(coord)
 			this.combination.push(value)
 			tile.accentColor = new Color(255, 255)
 			tile.children[0].accentColor = new Color(255, 255)
 		}
 	}
 	resetState() {
-		this.trigger(`submit`, { combo: this.combination, coords: this.tilesPlayed })
-		this.children.forEach(area => {
-			area.children[0].accentColor = null
-			area.children[0].children[0].accentColor = null
+		this.children.forEach(tile => {
+			tile.accentColor = null
+			tile.children[0].accentColor = null
 		})
+		this.trigger(`submit`, { combo: this.combination, coords: this.tilesPlayed })
 		this.combination = []
 		this.tilesPlayed = []
 	}
@@ -769,7 +891,7 @@ class GameBoard extends GameObject {
 		}
 		const drawLine = (from, to) => {
 			ctx.beginPath()
-			ctx.strokeStyle = `#ffff00`
+			ctx.strokeStyle = (new Color(255, 255)).toString()
 			ctx.lineWidth = 3
 			ctx.moveTo(from.x, from.y)
 			ctx.lineTo(to.x, to.y)
@@ -811,6 +933,17 @@ class Level extends GameObject {
 		this.button.on(`click`, (e) => this.onCombinationNotFound())
 
 		this.nextTurn()
+
+		this.generationsSince = [0, 0, 0, 0]
+	}
+	generateValue() {
+		let value = this.generationsSince.findIndex(value => value > 4)
+		if (value == -1) {
+			value = Math.floor(Math.random() * 4)
+		}
+		this.generationsSince[value] = 0
+		this.generationsSince.forEach((count, index) => index != value && this.generationsSince[index]++)
+		return value
 	}
 	generateCombination() {
 		if (Math.random() > 2 / 3) {
@@ -828,6 +961,7 @@ class Level extends GameObject {
 	}
 	onCombinationSubmit({ combo, coords }) {
 		if (combo.length == this.comboLength && serializeData(combo) == serializeData(this.combination)) {
+			this.board.replaceTiles(coords, range(this.comboLength).map(() => this.generateValue()))
 			this.nextTurn(true)
 		} else {
 			coords.map(coord => Animate.shake(this.board.getTile(coord), { duration: 200 }))
@@ -845,7 +979,7 @@ class Level extends GameObject {
 }
 
 function range(n) {
-	return new Array(n).fill(null)
+	return new Array(n).fill(null).map((filler, index) => index)
 }
 
 /**
@@ -853,21 +987,21 @@ function range(n) {
  */
 function shuffle(array) {
 	var m = array.length, t, i;
-  
+
 	// While there remain elements to shuffle…
 	while (m) {
-  
-	  // Pick a remaining element…
-	  i = Math.floor(Math.random() * m--);
-  
-	  // And swap it with the current element.
-	  t = array[m];
-	  array[m] = array[i];
-	  array[i] = t;
+
+		// Pick a remaining element…
+		i = Math.floor(Math.random() * m--);
+
+		// And swap it with the current element.
+		t = array[m];
+		array[m] = array[i];
+		array[i] = t;
 	}
-  
+
 	return array;
-  }
+}
 
 (async function () {
 
@@ -881,7 +1015,7 @@ function shuffle(array) {
 	}))
 
 	const level = new Level({
-		comboLength: 4,
+		comboLength: 5,
 		children: [
 			new Combination({
 				pos: new Vector(0, 13),
