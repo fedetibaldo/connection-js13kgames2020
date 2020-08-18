@@ -42,6 +42,11 @@ gulp.task(`build:html`, () =>
 		.pipe(gulp.dest(`./dist/`))
 )
 
+gulp.task(`build:move`, () =>
+	gulp.src(`./src/**/*.ttf`)
+		.pipe(gulp.dest(`./dist/`))
+)
+
 gulp.task(`build:images`, () =>
 	gulp.src(`./src/**/*.+(png|jpg)`)
 		.pipe(tinypng({
@@ -54,7 +59,7 @@ gulp.task(`build:images`, () =>
 
 // MACRO TASKS
 
-gulp.task(`build`, gulp.series(`build:clean`, gulp.parallel(`build:html`, `build:js`, `build:images`)))
+gulp.task(`build`, gulp.series(`build:clean`, gulp.parallel(`build:html`, `build:move`, `build:js`, `build:images`)))
 
 gulp.task(`build:watch`, () =>
 	gulp.watch(`./src/**/*`, gulp.series(`build`))
