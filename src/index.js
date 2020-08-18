@@ -168,9 +168,11 @@ class InputSingleton extends Observable {
 		Game.canvas.ontouchmove = (e) => this.onTouchMove(e)
 	}
 	onTouchStart(e) {
+		e = this._normalizeTouchEvent(e)
 		this.onMouseDown(e)
 	}
 	onTouchEnd(e) {
+		e = this._normalizeTouchEvent(e)
 		this.onMouseUp(e)
 	}
 	onTouchMove(e) {
@@ -178,35 +180,28 @@ class InputSingleton extends Observable {
 		this.onMouseMove(e)
 	}
 	_normalizeTouchEvent(e) {
-		e.clientX = e.touches[0].clientX
-		e.clientY = e.touches[0].clientY
+		e.clientX = e.changedTouches[0].clientX
+		e.clientY = e.changedTouches[0].clientY
 		return e
 	}
 	onMouseDown(e) {
 		this.isMouseDown = true
-		this.trigger(`mousedown`, {
-			name: `mousedown`,
-		})
+		this.triggerMouseEvent(`mousedown`, e)
 	}
 	onMouseUp(e) {
 		this.isMouseDown = false
-		this.trigger(`mouseup`, {
-			name: `mouseup`,
-		})
+		this.triggerMouseEvent(`mouseup`, e)
 	}
 	onMouseMove(e) {
-		this.mousePos = this._normalizePosition(new Vector(e.clientX, e.clientY))
-		this.trigger(`mousemove`, {
-			name: `mousemove`,
-			pos: this.mousePos,
-		})
+		this.triggerMouseEvent(`mousemove`, e)
 	}
 	onClick(e) {
-		this.mousePos = this._normalizePosition(new Vector(e.clientX, e.clientY))
-		this.trigger(`click`, {
-			name: `click`,
-			pos: this.mousePos,
-		})
+		this.triggerMouseEvent(`click`, e)
+	}
+	triggerMouseEvent(name, e) {
+		const pos = this._normalizePosition(new Vector(e.clientX, e.clientY))
+		this.mousePos = pos
+		this.trigger(name, { name, pos })
 	}
 	_normalizePosition(pos) {
 		const clickPos = pos.diff(Game.viewPos)
@@ -318,6 +313,16 @@ class AnimateSingleton {
 		})
 		return animation
 	}
+	lift(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		let { pos } = gameObject
+		const to = new Vector(pos.x, pos.y + -4)
+		animation.on(`progress`, progress => {
+			gameObject.opacity = 1 - progress
+			gameObject.pos = pos.add(to.diff(pos).mul(progress))
+		})
+		return animation
+	}
 }
 
 const Animate = new AnimateSingleton()
@@ -342,6 +347,10 @@ class GameObject extends Observable {
 	addChild(child, index = this.children.length) {
 		child.parent = this
 		this.children[index] = child
+	}
+	removeChild(toRemove) {
+		const index = this.children.findIndex(child => child === toRemove)
+		this.children.splice(index, 1)
 	}
 	update(deltaT) {
 		this.children.forEach(child => child.update(deltaT))
@@ -377,6 +386,65 @@ class Sprite extends GameObject {
 	render(ctx) {
 		ctx.drawImage(this.img, 0, 0,)
 		super.render(ctx)
+	}
+}
+
+class GameText extends GameObject {
+	constructor({
+		text = ``,
+		font = `4px Tinier`,
+		color = new Color(255, 255, 255),
+		...options
+	}) {
+		super(options)
+		this.text = text
+		this.font = font
+		this.color = color
+	}
+	prepareContext(ctx) {
+		ctx.fillStyle = this.color.toString()
+		ctx.font = this.font
+	}
+	render(ctx) {
+		this.prepareContext(ctx)
+		ctx.fillText(this.text, 0, 0)
+	}
+	measure() {
+		this.prepareContext(Game.ctx)
+		return Game.ctx.measureText(this.text)
+	}
+}
+
+class Score extends GameObject {
+	constructor({
+		score = 0,
+		...options
+	}) {
+		super(options)
+		this.score = score
+		this.labelObject = new GameText({
+			text: `SCORE: `,
+		})
+		this.scoreObject = new GameText({
+			text: this.score,
+			pos: new Vector(this.labelObject.measure().width, 0)
+		})
+		this.addChildren([
+			this.labelObject,
+			this.scoreObject,
+		])
+	}
+	increment() {
+		this.score++
+		this.scoreObject.text = this.score
+		const popup = new GameText({
+			text: `+1`,
+			color: new Color(255, 255),
+			pos: new Vector(this.labelObject.measure().width + this.scoreObject.measure().width, 0),
+		})
+		this.addChild(popup)
+		const liftAnimation = Animate.lift(popup, { duration: 1000 })
+		liftAnimation.on(`end`, () => this.removeChild(popup))
 	}
 }
 
@@ -445,13 +513,26 @@ class Area extends GameObject {
 	}) {
 		super(options)
 		this.size = size
+
+		this.isInside = false
 		// event listeners
+		Input.on(`mouseup`, (e) => this.onMouseEvent(`mouseup`, e))
+		Input.on(`mousedown`, (e) => this.onMouseEvent(`mousedown`, e))
 		Input.on(`mousemove`, (e) => this.onMouseEvent(`mousemove`, e))
 		Input.on(`click`, (e) => this.onMouseEvent(`click`, e))
 	}
 	onMouseEvent(name, event) {
 		if (this.isPointWithinObject(event.pos)) {
+			if (!this.isInside) {
+				this.trigger(`mouseenter`, event)
+				this.isInside = true
+			}
 			this.trigger(name, event)
+		} else {
+			if (this.isInside) {
+				this.trigger(`mouseexit`, event)
+			}
+			this.isInside = false
 		}
 	}
 	isPointWithinObject(point) {
@@ -498,13 +579,72 @@ class Tile extends Area {
 	}
 }
 
+class Button extends GameObject {
+	constructor({
+		text = ``,
+		size = new Vector(),
+		...options
+	}) {
+		super(options)
+
+		this.text = text
+		this.size = size
+
+		this.padding = 3
+		this.border = 1
+
+		this.isPressed = false
+
+		this.textObject = new GameText({
+			text: this.text,
+		})
+		this.textObject.pos = new Vector(
+			Math.floor(this.size.x / 2 - this.textObject.measure().width / 2),
+			this.padding + this.border + Math.floor(this.size.y / 2 - 4 / 2)
+		)
+
+		this.areaObject = new Area({
+			size: this.size,
+			children: [this.textObject],
+		})
+		this.addChild(this.areaObject)
+
+		this.areaObject.on(`mousedown`, () => this.onMouseDown())
+		this.areaObject.on(`mouseexit`, () => this.isPressed = false)
+		this.areaObject.on(`mouseup`, () => this.onMouseUp())
+	}
+	onMouseDown() {
+		this.isPressed = true
+	}
+	onMouseUp() {
+		if (this.isPressed) {
+			this.trigger(`click`)
+		}
+		this.isPressed = false
+	}
+	render(ctx) {
+		ctx.strokeStyle = (new Color(92, 92, 92)).toString()
+		ctx.fillStyle = (new Color(33, 33, 33)).toString()
+
+		if (!this.isPressed) {
+			ctx.fillRect(0, 0, this.size.x, this.size.y)
+		}
+		ctx.strokeRect(
+			(this.isPressed ? 1.5 : 0.5 ),
+			(this.isPressed ? 1.5 : 0.5 ),
+			this.size.x - (this.isPressed ? 3 : 1 ),
+			this.size.y - (this.isPressed ? 3 : 1 )
+		)
+
+		super.render(ctx)
+	}
+}
+
 const assets = {
 	triangle: `./assets/triangle.png`,
 	square: `./assets/square.png`,
 	circle: `./assets/circle.png`,
 	cross: `./assets/cross.png`,
-	button: `./assets/button.png`,
-	buttonPressed: `./assets/button-pressed.png`,
 }
 
 
@@ -572,10 +712,7 @@ class Combination extends GameObject {
 				delay: 50 * index
 			})
 			// Remove the child once the animation is complete
-			animation.on(`end`, () => {
-				const index = this.children.findIndex(child => child === oldChild)
-				this.children.splice(index, 1)
-			})
+			animation.on(`end`, () => this.removeChild(oldChild))
 		})
 		// Generate and add new children
 		const newRow = this._createChildren(combo)
@@ -696,10 +833,10 @@ class GameBoard extends GameObject {
 				})
 			]
 		})
-		tile.on(`mousemove`, this.select.bind(this, tile, value))
+		tile.on(`mouseenter`, this.select.bind(this, tile, value))
 		return tile
 	}
-	replaceTiles(coords, values = [0,0,0,0]) {
+	replaceTiles(coords, values = [0, 0, 0, 0]) {
 		// group by column
 		const deletionsByColumn = coords.reduce((deletions, coord) => {
 			deletions[coord.x].push(coord)
@@ -925,10 +1062,11 @@ class Level extends GameObject {
 		this.combination = []
 		this.comboLength = comboLength
 
+		this.score = this.children.find(child => child instanceof Score)
 		this.display = this.children.find(child => child instanceof Combination)
 		this.countdow = this.children.find(child => child instanceof Countdown)
 		this.board = this.children.find(child => child instanceof GameBoard)
-		this.button = this.children.find(child => child instanceof Area)
+		this.button = this.children.find(child => child instanceof Button)
 
 		this.board.on(`submit`, (e) => this.onCombinationSubmit(e))
 		this.button.on(`click`, (e) => this.onCombinationNotFound())
@@ -954,9 +1092,10 @@ class Level extends GameObject {
 		}
 	}
 	nextTurn(success) {
+		if (this.turn >= 0) {
+			this.score.increment()
+		}
 		this.turn++
-		// this.board.highlightCombination()
-		// this.display.highlight()
 		this.combination = this.generateCombination()
 		this.display.trigger(`next`, { combo: this.combination, success })
 	}
@@ -969,6 +1108,13 @@ class Level extends GameObject {
 		}
 	}
 	onCombinationNotFound() {
+		if (this.freezed) {
+			return
+		} else {
+			this.freezed = true
+			const freezeTimer = new Timer(200)
+			freezeTimer.on(`completed`, () => this.freezed = false)
+		}
 		if (this.board.findCombination(this.combination)) {
 			this.countdow.reduceBy(2000)
 			Animate.shake(this.display, { duration: 200 })
@@ -1006,6 +1152,10 @@ function shuffle(array) {
 
 (async function () {
 
+	const font = new FontFace('Tinier', 'url(./assets/Tinier.subset.ttf)')
+	await font.load()
+	document.fonts.add(font)
+
 	await Promise.all(Object.keys(assets).map(async key => {
 		const img = new Image()
 		await new Promise((resolve) => {
@@ -1037,6 +1187,9 @@ function shuffle(array) {
 	const level = new Level({
 		comboLength: 4,
 		children: [
+			new Score({
+				pos: new Vector(4, 8),
+			}),
 			new Combination({
 				pos: new Vector(0, 13),
 			}),
@@ -1049,7 +1202,11 @@ function shuffle(array) {
 				data: `af 2d c4`,
 				pos: new Vector(4, 34),
 			}),
-			button,
+			new Button({
+				text: `404`,
+				pos: new Vector(4, 81),
+				size: new Vector(Game.viewRes.x - 8, 11),
+			}),
 		],
 	})
 
