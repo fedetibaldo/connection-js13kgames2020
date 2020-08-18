@@ -833,7 +833,8 @@ class GameBoard extends GameObject {
 				})
 			]
 		})
-		tile.on(`mouseenter`, this.select.bind(this, tile, value))
+		tile.on(`mousedown`, () => this.select(tile, value))
+		tile.on(`mousemove`, () => this.select(tile, value))
 		return tile
 	}
 	replaceTiles(coords, values = [0, 0, 0, 0]) {
