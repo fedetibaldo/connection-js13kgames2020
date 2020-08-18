@@ -65,12 +65,83 @@ class Observable {
 		}
 	}
 	trigger(event, args) {
+		const implicitMethodName = `on${event.charAt(0).toUpperCase()}${event.slice(1)}`
+		if (typeof this[implicitMethodName] == `function`) {
+			this[implicitMethodName](args)
+		}
 		if (this.subs[event]) {
 			this.subs[event].forEach(sub => sub(args))
 		}
 	}
 	destroy() {
 		this.subs = []
+	}
+}
+
+class GameObject extends Observable {
+	constructor({
+		pos = new Vector(),
+		opacity = 1,
+		scale = 1,
+		children = [],
+		...unknownOptions
+	}) {
+		super()
+		this.pos = pos
+		this.opacity = opacity
+		this.scale = scale
+		this.children = []
+		this.addChildren(children)
+		for (let key in unknownOptions) {
+			this[key] = unknownOptions[key]
+		}
+	}
+	addChildren(children) {
+		children.forEach(child => this.addChild(child))
+	}
+	addChild(child, index = this.children.length) {
+		child.parent = this
+		this.children[index] = child
+		child.trigger(`mount`)
+	}
+	get(prop) {
+		if (typeof this[prop] == `function`) {
+			return this[prop]()
+		} else {
+			return this[prop]
+		}
+	}
+	removeChild(toRemove) {
+		const index = this.children.findIndex(child => child === toRemove)
+		this.children.splice(index, 1)
+	}
+	update(deltaT) {
+		this.children.forEach(child => child.update(deltaT))
+	}
+	render(ctx) {
+		this.children.forEach(child => {
+			ctx.save()
+			const { x, y } = child.pos
+			ctx.translate(x, y)
+			ctx.scale(child.scale, child.scale)
+			ctx.globalAlpha = child.opacity * this.getGlobalOpacity()
+			child.render(ctx)
+			ctx.restore()
+		})
+	}
+	getGlobalOpacity() {
+		if (this.parent) {
+			return this.opacity * this.parent.getGlobalOpacity()
+		} else {
+			return this.opacity
+		}
+	}
+	getGlobalPosition() {
+		if (this.parent) {
+			return this.pos.add(this.parent.getGlobalPosition())
+		} else {
+			return this.pos
+		}
 	}
 }
 
@@ -90,7 +161,7 @@ class GameSingleton extends Observable {
 		this.subCanvas.height = this.viewRes.y
 		this.subCtx = this.subCanvas.getContext(`2d`)
 
-		this.root = null
+		this.root = new GameObject({})
 		this.oldT = 0
 
 		window.onresize = () => this.fitScreen()
@@ -158,44 +229,44 @@ class InputSingleton extends Observable {
 		this.isMouseDown = false
 		this.mousePos = new Vector(0, 0)
 
-		Game.canvas.onmousedown = (e) => this.onMouseDown(e)
-		Game.canvas.onmouseup = (e) => this.onMouseUp(e)
-		Game.canvas.onmousemove = (e) => this.onMouseMove(e)
-		Game.canvas.onclick = (e) => this.onClick(e)
+		Game.canvas.onmousedown = (e) => this.onCanvasMouseDown(e)
+		Game.canvas.onmouseup = (e) => this.onCanvasMouseUp(e)
+		Game.canvas.onmousemove = (e) => this.onCanvasMouseMove(e)
+		Game.canvas.onclick = (e) => this.onCanvasClick(e)
 
-		Game.canvas.ontouchstart = (e) => this.onTouchStart(e)
-		Game.canvas.ontouchend = (e) => this.onTouchEnd(e)
-		Game.canvas.ontouchmove = (e) => this.onTouchMove(e)
+		Game.canvas.ontouchstart = (e) => this.onCanvasTouchStart(e)
+		Game.canvas.ontouchend = (e) => this.onCanvasTouchEnd(e)
+		Game.canvas.ontouchmove = (e) => this.onCanvasTouchMove(e)
 	}
-	onTouchStart(e) {
+	onCanvasTouchStart(e) {
 		e = this._normalizeTouchEvent(e)
-		this.onMouseDown(e)
+		this.onCanvasMouseDown(e)
 	}
-	onTouchEnd(e) {
+	onCanvasTouchEnd(e) {
 		e = this._normalizeTouchEvent(e)
-		this.onMouseUp(e)
+		this.onCanvasMouseUp(e)
 	}
-	onTouchMove(e) {
+	onCanvasTouchMove(e) {
 		e = this._normalizeTouchEvent(e)
-		this.onMouseMove(e)
+		this.onCanvasMouseMove(e)
 	}
 	_normalizeTouchEvent(e) {
 		e.clientX = e.changedTouches[0].clientX
 		e.clientY = e.changedTouches[0].clientY
 		return e
 	}
-	onMouseDown(e) {
+	onCanvasMouseDown(e) {
 		this.isMouseDown = true
 		this.triggerMouseEvent(`mousedown`, e)
 	}
-	onMouseUp(e) {
+	onCanvasMouseUp(e) {
 		this.isMouseDown = false
 		this.triggerMouseEvent(`mouseup`, e)
 	}
-	onMouseMove(e) {
+	onCanvasMouseMove(e) {
 		this.triggerMouseEvent(`mousemove`, e)
 	}
-	onClick(e) {
+	onCanvasClick(e) {
 		this.triggerMouseEvent(`click`, e)
 	}
 	triggerMouseEvent(name, e) {
@@ -218,9 +289,9 @@ class Timer extends Observable {
 		super()
 		this.duration = duration
 		this.progress = 0
-		this.unsubscribe = Game.on(`tick`, (deltaT) => this.onTick(deltaT))
+		this.unsubscribe = Game.on(`tick`, (deltaT) => this.onGameTick(deltaT))
 	}
-	onTick(deltaT) {
+	onGameTick(deltaT) {
 		this.progress += deltaT
 		this.trigger(`tick`, Math.min(this.progress / this.duration, 1))
 		if (this.progress > this.duration) {
@@ -253,8 +324,8 @@ class GameAnimation extends Observable {
 	}
 }
 
-class AnimateSingleton {
-	jumpOut(gameObject, { duration, delay }) {
+class Animate {
+	static jumpOut(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
 		let base = 0
 		animation.on(`start`, () => base = gameObject.pos.y)
@@ -265,7 +336,7 @@ class AnimateSingleton {
 		})
 		return animation
 	}
-	jumpIn(gameObject, { duration, delay }) {
+	static jumpIn(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
 		gameObject.opacity = 0
 		let base = 0
@@ -276,7 +347,7 @@ class AnimateSingleton {
 		})
 		return animation
 	}
-	shake(gameObject, { duration, delay }) {
+	static shake(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
 		let base = 0
 		animation.on(`start`, () => base = gameObject.pos.x)
@@ -285,7 +356,7 @@ class AnimateSingleton {
 		})
 		return animation
 	}
-	explode(gameObject, { duration, delay }) {
+	static explode(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
 		const { scale, pos, size } = gameObject
 		animation.on(`progress`, progress => {
@@ -296,7 +367,7 @@ class AnimateSingleton {
 		})
 		return animation
 	}
-	fadeIn(gameObject, { duration, delay }) {
+	static fadeIn(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
 		gameObject.opacity = 0
 		animation.on(`progress`, progress => {
@@ -304,7 +375,41 @@ class AnimateSingleton {
 		})
 		return animation
 	}
-	slide(gameObject, { duration, delay, to }) {
+	static fadeOut(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		gameObject.opacity = 1
+		animation.on(`progress`, progress => {
+			gameObject.opacity = 1 - progress
+		})
+		return animation
+	}
+	static blink(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		const startOpacity = gameObject.opacity
+		const oppositeOpacity = gameObject.opacity >= .5 ? 0 : 1
+		animation.on(`progress`, progress => {
+			if (progress >= 0 && progress < .5) {
+				gameObject.opacity = oppositeOpacity
+			} else if (progress >= .5 && progress < 1) {
+				gameObject.opacity = startOpacity
+			}
+			if (progress == 1) {
+				gameObject.opacity = oppositeOpacity
+			}
+		})
+		return animation
+	}
+	static zoomIn(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		const { pos, size } = gameObject
+		gameObject.scale = 0
+		animation.on(`progress`, progress => {
+			gameObject.pos = pos.add(size.mul(1 - progress).mul(1 / 2))
+			gameObject.scale = progress
+		})
+		return animation
+	}
+	static slide(gameObject, { duration, delay, to }) {
 		const animation = new GameAnimation({ duration, delay })
 		let { pos } = gameObject
 		pos = new Vector(pos.x, pos.y)
@@ -313,7 +418,7 @@ class AnimateSingleton {
 		})
 		return animation
 	}
-	lift(gameObject, { duration, delay }) {
+	static lift(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
 		let { pos } = gameObject
 		const to = new Vector(pos.x, pos.y + -4)
@@ -325,53 +430,31 @@ class AnimateSingleton {
 	}
 }
 
-const Animate = new AnimateSingleton()
-
-class GameObject extends Observable {
+class Rectangle extends GameObject {
 	constructor({
-		pos = new Vector(),
-		opacity = 1,
-		scale = 1,
-		children = []
+		color = new Color(),
+		size = new Vector(),
+		...options
 	}) {
-		super()
-		this.pos = pos
-		this.opacity = opacity
-		this.scale = scale
-		this.children = []
-		this.addChildren(children)
-	}
-	addChildren(children) {
-		children.forEach(child => this.addChild(child))
-	}
-	addChild(child, index = this.children.length) {
-		child.parent = this
-		this.children[index] = child
-	}
-	removeChild(toRemove) {
-		const index = this.children.findIndex(child => child === toRemove)
-		this.children.splice(index, 1)
-	}
-	update(deltaT) {
-		this.children.forEach(child => child.update(deltaT))
+		super(options)
+		this.color = color
+		this.size = size
 	}
 	render(ctx) {
-		this.children.forEach(child => {
-			ctx.save()
-			const { x, y } = child.pos
-			ctx.translate(x, y)
-			ctx.scale(child.scale, child.scale);
-			ctx.globalAlpha = child.opacity * this.opacity
-			child.render(ctx)
-			ctx.restore()
-		})
+		ctx.fillStyle = this.get(`color`).toString()
+		const { x, y } = this.get(`size`)
+		ctx.fillRect(0, 0, x, y)
+		super.render(ctx)
 	}
-	getGlobalPosition() {
-		if (this.parent) {
-			return this.pos.add(this.parent.getGlobalPosition())
-		} else {
-			return this.pos
-		}
+}
+
+class ResultsScreen extends GameObject {
+	constructor({
+		score = 0,
+		...options
+	}) {
+		super(options)
+		this.score = score
 	}
 }
 
@@ -393,12 +476,16 @@ class GameText extends GameObject {
 	constructor({
 		text = ``,
 		font = `4px Tinier`,
+		size = new Vector(),
+		align = `left`,
 		color = new Color(255, 255, 255),
 		...options
 	}) {
 		super(options)
 		this.text = text
 		this.font = font
+		this.size = size
+		this.align = align
 		this.color = color
 	}
 	prepareContext(ctx) {
@@ -407,11 +494,19 @@ class GameText extends GameObject {
 	}
 	render(ctx) {
 		this.prepareContext(ctx)
-		ctx.fillText(this.text, 0, 0)
+		let startPos = new Vector()
+		if (this.get(`align`) == `center`) {
+			startPos = this.size.mul(1 / 2).diff(
+				new Vector(this.measure().width / 2, 0)
+			)
+		}
+		const { x, y } = startPos
+		// TODO: new lines
+		ctx.fillText(this.get(`text`), Math.round(x), y)
 	}
 	measure() {
 		this.prepareContext(Game.ctx)
-		return Game.ctx.measureText(this.text)
+		return Game.ctx.measureText(this.get(`text`))
 	}
 }
 
@@ -423,24 +518,16 @@ class Score extends GameObject {
 		super(options)
 		this.score = score
 		this.labelObject = new GameText({
-			text: `SCORE: `,
+			text: () => `SCORE: ${this.score}`,
 		})
-		this.scoreObject = new GameText({
-			text: this.score,
-			pos: new Vector(this.labelObject.measure().width, 0)
-		})
-		this.addChildren([
-			this.labelObject,
-			this.scoreObject,
-		])
+		this.addChild(this.labelObject)
 	}
 	increment() {
 		this.score++
-		this.scoreObject.text = this.score
 		const popup = new GameText({
 			text: `+1`,
 			color: new Color(255, 255),
-			pos: new Vector(this.labelObject.measure().width + this.scoreObject.measure().width, 0),
+			pos: new Vector(this.labelObject.measure().width, 0),
 		})
 		this.addChild(popup)
 		const liftAnimation = Animate.lift(popup, { duration: 1000 })
@@ -630,10 +717,10 @@ class Button extends GameObject {
 			ctx.fillRect(0, 0, this.size.x, this.size.y)
 		}
 		ctx.strokeRect(
-			(this.isPressed ? 1.5 : 0.5 ),
-			(this.isPressed ? 1.5 : 0.5 ),
-			this.size.x - (this.isPressed ? 3 : 1 ),
-			this.size.y - (this.isPressed ? 3 : 1 )
+			(this.isPressed ? 1.5 : 0.5),
+			(this.isPressed ? 1.5 : 0.5),
+			this.size.x - (this.isPressed ? 3 : 1),
+			this.size.y - (this.isPressed ? 3 : 1)
 		)
 
 		super.render(ctx)
@@ -693,7 +780,6 @@ class Combination extends GameObject {
 		...options
 	}) {
 		super(options)
-		this.on(`next`, (e) => this.onNext(e))
 	}
 	onNext({ combo, success }) {
 		if (success) {
@@ -755,10 +841,18 @@ class Countdown extends GameObject {
 		this.trail = 0
 		this.trailColor = new Color(255, 0, 0, 0)
 		this.trailFade = 400
+
+		this.completed = false
 	}
 	update(deltaT) {
-		this.progress = Math.min(this.progress + deltaT, this.duration)
-		this.trailColor.a = Math.max(this.trailColor.a - deltaT / this.trailFade * 255, 0)
+		if (!this.completed) {
+			this.progress = Math.min(this.progress + deltaT, this.duration)
+			this.trailColor.a = Math.max(this.trailColor.a - deltaT / this.trailFade * 255, 0)
+			if (this.progress == this.duration) {
+				this.completed = true
+				this.trigger(`completed`)
+			}
+		}
 		super.update(deltaT)
 	}
 	reduceBy(time) {
@@ -1072,9 +1166,20 @@ class Level extends GameObject {
 		this.board.on(`submit`, (e) => this.onCombinationSubmit(e))
 		this.button.on(`click`, (e) => this.onCombinationNotFound())
 
+		this.countdow.on(`completed`, () => this.gameOver())
+
 		this.nextTurn()
 
 		this.generationsSince = [0, 0, 0, 0]
+	}
+	gameOver() {
+		this.display.trigger(`next`, { combo: [], success: false })
+		this.board.children.forEach((child, index) => {
+			Animate.slide(child, { duration: 400, delay: (3 - Math.floor(index / 4)) * 50, to: child.pos.add(new Vector(0, 30)) })
+		})
+		const outAnimation = Animate.fadeOut(this, { duration: 400 })
+		outAnimation.on(`end`, () => this.parent.removeChild(this))
+		Game.root.addChild(createResultsScreen(this.score))
 	}
 	generateValue() {
 		let value = this.generationsSince.findIndex(value => value > 4)
@@ -1151,7 +1256,79 @@ function shuffle(array) {
 	return array;
 }
 
+function createResultsScreen({
+	score = 0,
+}) {
+	return new ResultsScreen({
+		score,
+		children: [
+			new GameText({
+				text: `TIME'S UP`,
+				font: `8px Tinier`,
+				opacity: 0,
+				onMount: function () {
+					Animate.blink(this, { duration: 800 })
+					Animate.slide(this, { delay: 1200, duration: 400, to: new Vector(4, 36) })
+				},
+				pos: new Vector(4, Game.viewRes.y / 2),
+				size: new Vector(Game.viewRes.x - 8, 0),
+				align: `center`,
+			}),
+			new GameText({
+				text: () => `SCORE: ${score}`,
+				pos: new Vector(4, 36 + 8 + 4),
+				onMount: function () {
+					Animate.fadeIn(this, { delay: 1600, duration: 200 })
+				},
+				size: new Vector(Game.viewRes.x - 8, 0),
+			}),
+			new GameText({
+				text: `BEST: 404`,
+				pos: new Vector(4, 36 + 8 + 4 + 4 + 4),
+				onMount: function () {
+					Animate.fadeIn(this, { delay: 1800, duration: 200 })
+				},
+				size: new Vector(Game.viewRes.x - 8, 0),
+			}),
+		],
+	})
+}
+
+function createLevel({
+	comboLength = 0,
+	board = ``,
+	time = 0,
+}) {
+	return new Level({
+		comboLength,
+		children: [
+			new Score({
+				pos: new Vector(4, 8),
+			}),
+			new Combination({
+				pos: new Vector(0, 13),
+			}),
+			new Countdown({
+				pos: new Vector(4, 26),
+				duration: time,
+				length: 56,
+			}),
+			new GameBoard({
+				data: board,
+				pos: new Vector(4, 34),
+			}),
+			new Button({
+				text: `404`,
+				pos: new Vector(4, 81),
+				size: new Vector(Game.viewRes.x - 8, 11),
+			}),
+		],
+	})
+}
+
 (async function () {
+
+	// load assets
 
 	const font = new FontFace('Tinier', 'url(./assets/Tinier.subset.ttf)')
 	await font.load()
@@ -1166,52 +1343,15 @@ function shuffle(array) {
 		assets[key] = img
 	}))
 
-	const button = new Area({
-		pos: new Vector(4, 81),
-		size: new Vector(Game.viewRes.x - 8, 8),
-		children: [
-			new Sprite({
-				img: getAsset(`button`)
-			}),
-		]
-	})
-	button.on(`click`, () => {
-		button.children[0].img = getAsset(`buttonPressed`)
-		button.pos = button.pos.add(new Vector(1, 1))
-		const releaseTimer = new Timer(100)
-		releaseTimer.on(`completed`, () => {
-			button.children[0].img = getAsset(`button`)
-			button.pos = button.pos.diff(new Vector(1, 1))
-		})
-	})
+	// append level
 
-	const level = new Level({
+	Game.root.addChild(createLevel({
 		comboLength: 4,
-		children: [
-			new Score({
-				pos: new Vector(4, 8),
-			}),
-			new Combination({
-				pos: new Vector(0, 13),
-			}),
-			new Countdown({
-				pos: new Vector(4, 26),
-				duration: 60000,
-				length: 56,
-			}),
-			new GameBoard({
-				data: `af 2d c4`,
-				pos: new Vector(4, 34),
-			}),
-			new Button({
-				text: `404`,
-				pos: new Vector(4, 81),
-				size: new Vector(Game.viewRes.x - 8, 11),
-			}),
-		],
-	})
+		board: `af 2d c4`,
+		time: 60000,
+	}))
 
-	Game.root = level
+	// start game
 
 	Game.play()
 })()
