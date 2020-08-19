@@ -60,7 +60,8 @@ class Observable {
 		return () => {
 			const index = this.subs[event].findIndex(sub => sub === cb)
 			if (index >= 0) {
-				this.subs[event].splice(index, 1)
+				// schedule for removal
+				this.subs[event][index] = null
 			}
 		}
 	}
@@ -71,6 +72,8 @@ class Observable {
 		}
 		if (this.subs[event]) {
 			this.subs[event].forEach(sub => sub(args))
+			// remove unsubscribed watchers
+			this.subs[event] = this.subs[event].filter(Boolean)
 		}
 	}
 	destroy() {
