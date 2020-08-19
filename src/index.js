@@ -518,7 +518,9 @@ class Score extends GameObject {
 		super(options)
 		this.score = score
 		this.labelObject = new GameText({
-			text: () => `SCORE: ${this.score}`,
+			text: () => `${this.score}`,
+			align: `center`,
+			size: new Vector(Game.viewRes.x - 8, 0),
 		})
 		this.addChild(this.labelObject)
 	}
@@ -527,7 +529,9 @@ class Score extends GameObject {
 		const popup = new GameText({
 			text: `+1`,
 			color: new Color(255, 255),
-			pos: new Vector(this.labelObject.measure().width, 0),
+			align: `center`,
+			size: new Vector(Game.viewRes.x - 8, 0),
+			pos: new Vector(this.labelObject.measure().width + 1, 0),
 		})
 		this.addChild(popup)
 		const liftAnimation = Animate.lift(popup, { duration: 1000 })
