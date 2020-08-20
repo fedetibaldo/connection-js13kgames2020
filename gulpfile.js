@@ -43,7 +43,7 @@ gulp.task(`build:html`, () =>
 )
 
 gulp.task(`build:move`, () =>
-	gulp.src(`./src/**/*.ttf`)
+	gulp.src(`./src/**/*.json`)
 		.pipe(gulp.dest(`./dist/`))
 )
 

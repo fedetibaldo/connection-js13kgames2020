@@ -225,6 +225,115 @@ const Game = new GameSingleton({
 	viewRes: new Vector(64, 96)
 })
 
+class GameText extends GameObject {
+	constructor({
+		text = ``,
+		font = `4px Tinier`,
+		size = new Vector(),
+		align = `left`,
+		color = new Color(255, 255, 255),
+		...options
+	}) {
+		super(options)
+		this.text = text
+		this.font = font
+		this.size = size
+		this.align = align
+		this.color = color
+	}
+	render(ctx) {
+		let startPos = new Vector()
+		if (this.get(`align`) == `center`) {
+			startPos = this.size.mul(1 / 2).diff(
+				new Vector(this.measure() / 2, 0)
+			)
+		}
+		const { x, y } = startPos
+		// TODO: new lines
+		const text = this.get(`text`)
+		ctx.translate(Math.round(x), 0)
+		text.split(``).forEach((char) => {
+			const width = this.font.getWidth(char)
+			const height = this.font.getHeight(char)
+			const offset = this.font.getOffset(char)
+
+			ctx.drawImage(
+				this.font.source,
+				offset, 0, width, height,
+				0, 0, width, height
+			)
+
+			ctx.translate(width, 0)
+		})
+		// ctx.fillText(this.get(`text`), Math.round(x), y)
+	}
+	measure() {
+		return this.get(`text`).split(``).reduce((length, char) => {
+			return length + this.font.getWidth(char)
+		}, 0)
+	}
+}
+
+class GameFont {
+	constructor(sourcePath, metaPath) {
+		this.sourcePath = sourcePath
+		this.metaPath = metaPath
+		this.source = new Image()
+		this.meta = {}
+		this.charsMap = new Map()
+	}
+
+	async load() {
+		// fetch resources
+		await new Promise(resolve => {
+			this.source.onload = resolve
+			this.source.src = this.sourcePath
+		})
+		const response = await fetch(this.metaPath)
+		if (response.ok) {
+			this.meta = await response.json()
+		}
+		// precalculate chars indexes
+		let index = 0
+		for (let range of this.meta.ranges) {
+			if (!Array.isArray(range)) {
+				range = [range, range]
+			}
+			const [lowerBound, upperBound] = range.map(charCode => parseInt(charCode, 16))
+			for (let i = lowerBound; i <= upperBound; i++) {
+				this.charsMap.set(i, index)
+				index += 1
+			}
+		}
+	}
+
+	getIndex(char) {
+		char = char.charCodeAt(0)
+		return this.charsMap.get(char)
+	}
+
+	getHeight(char) {
+		// character independent
+		return this.meta.height
+	}
+
+	getWidth(char) {
+		const index = this.getIndex(char)
+		return this.meta.width[index]
+	}
+
+	getOffset(char) {
+		const index = this.getIndex(char)
+		let offset = 0
+		for (let i = 0; i < index; i++) {
+			offset += this.meta.width[i]
+		}
+		return offset
+	}
+}
+
+const gameFont = new GameFont(`./assets/font.png`, `./assets/font.meta.json`)
+
 class InputSingleton extends Observable {
 	constructor() {
 		super()
@@ -475,44 +584,6 @@ class Sprite extends GameObject {
 	}
 }
 
-class GameText extends GameObject {
-	constructor({
-		text = ``,
-		font = `4px Tinier`,
-		size = new Vector(),
-		align = `left`,
-		color = new Color(255, 255, 255),
-		...options
-	}) {
-		super(options)
-		this.text = text
-		this.font = font
-		this.size = size
-		this.align = align
-		this.color = color
-	}
-	prepareContext(ctx) {
-		ctx.fillStyle = this.color.toString()
-		ctx.font = this.font
-	}
-	render(ctx) {
-		this.prepareContext(ctx)
-		let startPos = new Vector()
-		if (this.get(`align`) == `center`) {
-			startPos = this.size.mul(1 / 2).diff(
-				new Vector(this.measure().width / 2, 0)
-			)
-		}
-		const { x, y } = startPos
-		// TODO: new lines
-		ctx.fillText(this.get(`text`), Math.round(x), y)
-	}
-	measure() {
-		this.prepareContext(Game.ctx)
-		return Game.ctx.measureText(this.get(`text`))
-	}
-}
-
 class Score extends GameObject {
 	constructor({
 		score = 0,
@@ -522,6 +593,7 @@ class Score extends GameObject {
 		this.score = score
 		this.labelObject = new GameText({
 			text: () => `${this.score}`,
+			font: gameFont,
 			align: `center`,
 			size: new Vector(Game.viewRes.x - 8, 0),
 		})
@@ -533,8 +605,9 @@ class Score extends GameObject {
 			text: `+1`,
 			color: new Color(255, 255),
 			align: `center`,
+			font: gameFont,
 			size: new Vector(Game.viewRes.x - 8, 0),
-			pos: new Vector(this.labelObject.measure().width + 1, 0),
+			pos: new Vector(this.labelObject.measure() + 1, 0),
 		})
 		this.addChild(popup)
 		const liftAnimation = Animate.lift(popup, { duration: 1000 })
@@ -691,10 +764,12 @@ class Button extends GameObject {
 
 		this.textObject = new GameText({
 			text: this.text,
+			font: gameFont,
+			size: this.size,
 		})
 		this.textObject.pos = new Vector(
-			Math.floor(this.size.x / 2 - this.textObject.measure().width / 2),
-			this.padding + this.border + Math.floor(this.size.y / 2 - 4 / 2)
+			Math.floor(this.size.x / 2 - this.textObject.measure() / 2),
+			this.padding + this.border /* + Math.floor(this.size.y / 2 - 4 / 2) */
 		)
 
 		this.areaObject = new Area({
@@ -1271,7 +1346,7 @@ function createResultsScreen({
 		children: [
 			new GameText({
 				text: `TIME'S UP`,
-				font: `8px Tinier`,
+				font: gameFont,
 				opacity: 0,
 				onMount: function () {
 					Animate.blink(this, { duration: 800 })
@@ -1284,6 +1359,7 @@ function createResultsScreen({
 			new GameText({
 				text: () => `SCORE: ${score}`,
 				pos: new Vector(4, 36 + 8 + 4),
+				font: gameFont,
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 1600, duration: 200 })
 				},
@@ -1292,6 +1368,7 @@ function createResultsScreen({
 			new GameText({
 				text: `BEST: 404`,
 				pos: new Vector(4, 36 + 8 + 4 + 4 + 4),
+				font: gameFont,
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 1800, duration: 200 })
 				},
@@ -1337,9 +1414,7 @@ function createLevel({
 
 	// load assets
 
-	const font = new FontFace('Tinier', 'url(./assets/Tinier.subset.ttf)')
-	await font.load()
-	document.fonts.add(font)
+	await gameFont.load()
 
 	await Promise.all(Object.keys(assets).map(async key => {
 		const img = new Image()
