@@ -1455,13 +1455,19 @@ class LevelsScreen extends GameObject {
 				{
 					name: `GET SQUARE`,
 					comboLength: 4,
-					board: `d4 d4 69`,
+					board: `55 55 55`,
 					time: 60000,
 				},
 				{
-					name: `HIGH 5`,
+					name: `HIGH FIVE`,
 					comboLength: 5,
 					board: `f1 78 1a`,
+					time: 60000,
+				},
+				{
+					name: `SIX PACK`,
+					comboLength: 6,
+					board: `eb 69 28`,
 					time: 60000,
 				},
 			],
