@@ -647,7 +647,11 @@ class ResultsScreen extends GameObject {
 		]
 	}
 	retry() {
-		Game.root.addChild(new Level({ ...this.level, children: null, opacity: 1 }))
+		if (this.level instanceof Arcade) {
+			Game.root.addChild(new Arcade({ ...this.level, children: null, opacity: 1 }))
+		} else {
+			Game.root.addChild(new Level({ ...this.level, children: null, opacity: 1 }))
+		}
 		this.destroy()
 	}
 	goToMenu() {
@@ -989,7 +993,7 @@ class Countdown extends GameObject {
 	}
 	update(deltaT) {
 		if (!this.completed) {
-			this.progress = Math.min(this.progress + deltaT, this.duration)
+			this.progress = Math.max(0, Math.min(this.progress + deltaT, this.duration))
 			this.trailColor.a = Math.max(this.trailColor.a - deltaT / this.trailFade * 255, 0)
 			if (this.progress == this.duration) {
 				this.completed = true
@@ -1001,7 +1005,12 @@ class Countdown extends GameObject {
 	reduceBy(time) {
 		this.trail = this.progress
 		this.update(time)
-		this.trailColor.a = 255
+		this.trailColor = new Color(255, 0, 0, 255)
+	}
+	incrementBy(time) {
+		this.trail = this.progress
+		this.update(-time)
+		this.trailColor = new Color(0, 255, 0, 255)
 	}
 	/**
 	 * @param {CanvasRenderingContext2D} ctx 
@@ -1436,16 +1445,28 @@ class Score extends GameObject {
 	}
 }
 
+class Arcade extends Level {
+	constructor(options) {
+		super({
+			...options,
+			comboLength: 3,
+			board: `e4 1b b4`,
+			time: 60000,
+		})
+	}
+	nextTurn() {
+		if (this.turn >= 0) {
+			this.getChild(`countdown`).incrementBy(2000)
+		}
+		this.comboLength = Math.min(3 + Math.floor((this.score + 1) / 10), 7)
+		super.nextTurn()
+	}
+}
+
 class LevelsScreen extends GameObject {
 	constructor(options) {
 		super({
 			levels: [
-				// {
-				// 	name: `2 BIRDS`,
-				// 	comboLength: 2,
-				// 	board: `e4 1b b4`,
-				// 	time: 30000,
-				// },
 				{
 					name: `3 IN A ROW`,
 					comboLength: 3,
@@ -1487,6 +1508,33 @@ class LevelsScreen extends GameObject {
 		Game.root.addChild(new Level({
 			...level
 		}))
+		this.destroy()
+	}
+}
+
+class Menu extends GameObject {
+	createChildren() {
+		return [
+			new Button({
+				text: `LEVELS`,
+				size: new Vector(Game.viewRes.x - 8, 11),
+				pos: new Vector(4, 4),
+				onClick: () => this.browseLevels(),
+			}),
+			new Button({
+				text: `ARCADE`,
+				size: new Vector(Game.viewRes.x - 8, 11),
+				pos: new Vector(4, 4 + 11 + 4),
+				onClick: () => this.playArcade(),
+			}),
+		]
+	}
+	browseLevels() {
+		Game.root.addChild(new LevelsScreen({}))
+		this.destroy()
+	}
+	playArcade() {
+		Game.root.addChild(new Arcade({}))
 		this.destroy()
 	}
 }
@@ -1533,7 +1581,7 @@ function shuffle(array) {
 
 	// append level
 
-	Game.root.addChild(new LevelsScreen({}))
+	Game.root.addChild(new Menu({}))
 
 	// start game
 
