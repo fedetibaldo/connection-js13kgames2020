@@ -72,7 +72,7 @@ class Observable {
 			this[implicitMethodName](args)
 		}
 		if (this.subs[event]) {
-			this.subs[event].forEach(sub => sub(args))
+			this.subs[event].forEach(sub => sub && sub(args))
 			// remove unsubscribed watchers
 			this.subs[event] = this.subs[event].filter(Boolean)
 		}
@@ -102,6 +102,15 @@ class GameObject extends Observable {
 		}
 
 		this.addChildren(children || this.createChildren())
+	}
+	destroy() {
+		super.destroy()
+		if (this.parent) {
+			this.parent.removeChild(this)
+		}
+		const children = this.children
+		this.children = []
+		children.forEach(child => child.destroy())
 	}
 	createChildren() {
 		return []
@@ -432,17 +441,8 @@ class Timer extends Observable {
 		if (this.progress > this.duration) {
 			this.trigger(`completed`)
 			this.unsubscribe()
+			this.destroy()
 		}
-	}
-	static all(timers) {
-		const watcher = new Observable()
-		let completed = 0
-		timers.forEach(timer => timer.on(`completed`, () => {
-			if (++completed == timers.length) {
-				watcher.trigger(`completed`)
-			}
-		}))
-		return watcher
 	}
 }
 
@@ -454,7 +454,10 @@ class GameAnimation extends Observable {
 			this.trigger(`start`)
 			const animationTimer = new Timer(duration)
 			animationTimer.on(`tick`, (progress) => this.trigger(`progress`, progress))
-			animationTimer.on(`completed`, () => this.trigger(`end`))
+			animationTimer.on(`completed`, () => {
+				this.trigger(`end`)
+				this.destroy()
+			})
 		})
 	}
 }
@@ -645,11 +648,11 @@ class ResultsScreen extends GameObject {
 	}
 	retry() {
 		Game.root.addChild(new Level({ ...this.level, children: null, opacity: 1 }))
-		this.parent.removeChild(this)
+		this.destroy()
 	}
 	goToMenu() {
 		Game.root.addChild(new LevelsScreen({}))
-		this.parent.removeChild(this)
+		this.destroy()
 	}
 }
 
@@ -735,10 +738,17 @@ class Area extends GameObject {
 
 		this.isInside = false
 		// event listeners
-		Input.on(`mouseup`, (e) => this.onMouseEvent(`mouseup`, e))
-		Input.on(`mousedown`, (e) => this.onMouseEvent(`mousedown`, e))
-		Input.on(`mousemove`, (e) => this.onMouseEvent(`mousemove`, e))
-		Input.on(`click`, (e) => this.onMouseEvent(`click`, e))
+		this.listeners = [
+			Input.on(`mouseup`, (e) => this.onMouseEvent(`mouseup`, e)),
+			Input.on(`mousedown`, (e) => this.onMouseEvent(`mousedown`, e)),
+			Input.on(`mousemove`, (e) => this.onMouseEvent(`mousemove`, e)),
+			Input.on(`click`, (e) => this.onMouseEvent(`click`, e)),
+		]
+	}
+	destroy() {
+		super.destroy()
+		this.listeners.forEach(sub => sub())
+		this.listeners = []
 	}
 	onMouseEvent(name, event) {
 		if (this.isPointWithinObject(event.pos)) {
@@ -805,33 +815,32 @@ class Button extends GameObject {
 		align = `left`,
 		...options
 	}) {
-		super(options)
-
-		this.text = text
-		this.size = size
-		this.align = align
-
-		this.padding = 3
-		this.border = 1
+		super({
+			text, size, align,
+			padding: 3,
+			border: 1,
+			...options
+		})
 
 		this.isPressed = false
-
-		this.textObject = new GameText({
-			text: this.text,
-			align: this.align,
-			size: this.size.diff(new Vector(this.padding + this.border, this.padding + this.border).mul(2)),
-			pos: new Vector(this.padding + this.border, this.padding + this.border),
-		})
-
-		this.areaObject = new Area({
-			size: this.size,
-			children: [this.textObject],
-		})
-		this.addChild(this.areaObject)
-
-		this.areaObject.on(`mousedown`, () => this.onAreaMouseDown())
-		this.areaObject.on(`mouseexit`, () => this.isPressed = false)
-		this.areaObject.on(`mouseup`, () => this.onAreaMouseUp())
+	}
+	createChildren() {
+		return [
+			new Area({
+				size: this.size,
+				onMousedown: () => this.onAreaMouseDown(),
+				onMouseexit: () => this.isPressed = false,
+				onMouseup: () => this.onAreaMouseUp(),
+				children: [
+					new GameText({
+						text: this.text,
+						align: this.align,
+						size: this.size.diff(new Vector(this.padding + this.border, this.padding + this.border).mul(2)),
+						pos: new Vector(this.padding + this.border, this.padding + this.border),
+					})
+				],
+			})
+		]
 	}
 	onAreaMouseDown() {
 		this.isPressed = true
@@ -1041,7 +1050,11 @@ class GameBoard extends GameObject {
 		this.tilesPlayed = []
 		this.generationsSince = [0, 0, 0, 0]
 
-		Input.on(`mouseup`, () => this.submit())
+		this.unsubscribe = Input.on(`mouseup`, () => this.submit())
+	}
+	destroy() {
+		super.destroy()
+		this.unsubscribe()
 	}
 	createChildren() {
 		return this.grid.reduce((children, row, rowIndex) => [
@@ -1050,8 +1063,8 @@ class GameBoard extends GameObject {
 		], [])
 	}
 	_createChild(coord, value) {
-		const tile = new Tile({
-			pos: new Vector(15 * coord.x, 15 * coord.y),
+		return new Tile({
+			pos: coord.mul(15),
 			size: new Vector(11, 11),
 			children: [
 				new ColoredSprite({
@@ -1059,11 +1072,14 @@ class GameBoard extends GameObject {
 					size: new Vector(7, 7),
 					img: getAsset(fromDataToAsset(value)),
 				})
-			]
+			],
+			onMousedown: function () {
+				this.parent.select(this, value)
+			},
+			onMousemove: function () {
+				this.parent.select(this, value)
+			},
 		})
-		tile.on(`mousedown`, () => this.select(tile, value))
-		tile.on(`mousemove`, () => this.select(tile, value))
-		return tile
 	}
 	replaceTiles(coords, values = [0, 0, 0, 0]) {
 		// group by column
@@ -1089,7 +1105,7 @@ class GameBoard extends GameObject {
 				this.children[this.children.length] = tile
 				outAnimation.on(`end`, () => {
 					tile.destroy()
-					this.children.splice(this.children.length - 1, 1)
+					// this.children.splice(this.children.length - 1, 1)
 				})
 				// create a new child to replace the soon-to-be-missing tile
 				const startCoord = new Vector(x, -(deletions.length - depth))
@@ -1354,7 +1370,7 @@ class Level extends GameObject {
 		})
 
 		const outAnimation = Animate.fadeOut(this, { duration: 400 })
-		outAnimation.on(`end`, () => this.parent.removeChild(this))
+		outAnimation.on(`end`, () => this.destroy())
 		Game.root.addChild(new ResultsScreen({ score: this.score, level: this }))
 	}
 	generateCombination() {
@@ -1381,14 +1397,14 @@ class Level extends GameObject {
 			return
 		} else {
 			this.freezed = true
-			const freezeTimer = new Timer(200)
+			const freezeTimer = new Timer(600)
 			freezeTimer.on(`completed`, () => this.freezed = false)
 		}
 		if (this.getChild(`board`).findCombination(this.combo)) {
 			this.getChild(`countdown`).reduceBy(2000)
 			Animate.shake(this.getChild(`combination`), { duration: 200 })
 			Animate.shake(this.getChild(`board`), { duration: 200 })
-		} else {
+		} else if (this.combo.length) {
 			this.nextTurn()
 		}
 	}
@@ -1416,7 +1432,7 @@ class Score extends GameObject {
 		})
 		this.addChild(popup)
 		const liftAnimation = Animate.lift(popup, { duration: 1000 })
-		liftAnimation.on(`end`, () => this.removeChild(popup))
+		liftAnimation.on(`end`, () => popup.destroy())
 	}
 }
 
@@ -1465,7 +1481,7 @@ class LevelsScreen extends GameObject {
 		Game.root.addChild(new Level({
 			...level
 		}))
-		this.parent.removeChild(this)
+		this.destroy()
 	}
 }
 
