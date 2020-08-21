@@ -260,7 +260,7 @@ class GameText extends GameObject {
 		const text = this.get(`text`)
 
 		let fromLeft = Math.round(startPos.x)
-		let fromTop = startPos.y
+		let fromTop = 0 /* startPos.y */
 
 		text.split(``).forEach((char) => {
 			const width = this.font.getWidth(char)
@@ -586,9 +586,10 @@ class Rectangle extends GameObject {
 class ResultsScreen extends GameObject {
 	constructor({
 		score = 0,
+		level,
 		...options
 	}) {
-		super({ score, ...options })
+		super({ level, score, ...options })
 	}
 	createChildren() {
 		return [
@@ -598,7 +599,7 @@ class ResultsScreen extends GameObject {
 				opacity: 0,
 				onMount: function () {
 					Animate.blink(this, { duration: 800 })
-					Animate.slide(this, { delay: 1200, duration: 400, to: new Vector(4, 36) })
+					Animate.slide(this, { delay: 1200, duration: 400, to: new Vector(4, 32) })
 				},
 				pos: new Vector(4, Game.viewRes.y / 2),
 				size: new Vector(Game.viewRes.x - 8, 0),
@@ -606,7 +607,7 @@ class ResultsScreen extends GameObject {
 			}),
 			new GameText({
 				text: () => `SCORE: ${this.get(`score`)}`,
-				pos: new Vector(4, 36 + 8 + 4),
+				pos: new Vector(4, 32 + 8 + 4),
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 1600, duration: 200 })
 				},
@@ -614,13 +615,41 @@ class ResultsScreen extends GameObject {
 			}),
 			new GameText({
 				text: `BEST: 404`,
-				pos: new Vector(4, 36 + 8 + 4 + 4 + 4),
+				pos: new Vector(4, 32 + 8 + 4 + 4 + 4),
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 1800, duration: 200 })
 				},
 				size: new Vector(Game.viewRes.x - 8, 0),
 			}),
+			new Button({
+				text: `RETRY`,
+				align: `center`,
+				onMount: function () {
+					Animate.fadeIn(this, { delay: 2000, duration: 200 })
+				},
+				onClick: () => this.retry(),
+				size: new Vector(Game.viewRes.x / 2 - 6, 11),
+				pos: new Vector(4, 32 + 8 + 4 + 4 + 4 + 4 + 4),
+			}),
+			new Button({
+				text: `MENU`,
+				align: `center`,
+				onMount: function () {
+					Animate.fadeIn(this, { delay: 2000, duration: 200 })
+				},
+				onClick: () => this.goToMenu(),
+				size: new Vector(Game.viewRes.x / 2 - 6, 11),
+				pos: new Vector(Game.viewRes.x / 2 + 2, 32 + 8 + 4 + 4 + 4 + 4 + 4),
+			}),
 		]
+	}
+	retry() {
+		Game.root.addChild(new Level({ ...this.level, children: null, opacity: 1 }))
+		this.parent.removeChild(this)
+	}
+	goToMenu() {
+		Game.root.addChild(new LevelsScreen({}))
+		this.parent.removeChild(this)
 	}
 }
 
@@ -773,12 +802,14 @@ class Button extends GameObject {
 	constructor({
 		text = ``,
 		size = new Vector(),
+		align = `left`,
 		...options
 	}) {
 		super(options)
 
 		this.text = text
 		this.size = size
+		this.align = align
 
 		this.padding = 3
 		this.border = 1
@@ -787,12 +818,10 @@ class Button extends GameObject {
 
 		this.textObject = new GameText({
 			text: this.text,
-			size: this.size,
+			align: this.align,
+			size: this.size.diff(new Vector(this.padding + this.border, this.padding + this.border).mul(2)),
+			pos: new Vector(this.padding + this.border, this.padding + this.border),
 		})
-		this.textObject.pos = new Vector(
-			Math.floor(this.size.x / 2 - this.textObject.measure() / 2),
-			this.padding + this.border /* + Math.floor(this.size.y / 2 - 4 / 2) */
-		)
 
 		this.areaObject = new Area({
 			size: this.size,
@@ -1192,7 +1221,7 @@ class GameBoard extends GameObject {
 		return coords.map(coord => this.getValue(coord))
 	}
 	select(tile, value) {
-		if (Input.isMouseDown && this.tilesPlayed.length <= this.get(`combo`).length) {
+		if (Input.isMouseDown && this.tilesPlayed.length < this.get(`combo`).length) {
 			const coord = this.getCoord(tile)
 			if (this.tilesPlayed.length) {
 				if (this.tilesPlayed.find(playedPos => playedPos.equals(coord))) {
@@ -1308,6 +1337,7 @@ class Level extends GameObject {
 			}),
 			new Button({
 				id: `button`,
+				align: `center`,
 				text: `404`,
 				pos: new Vector(4, 81),
 				size: new Vector(Game.viewRes.x - 8, 11),
@@ -1325,7 +1355,7 @@ class Level extends GameObject {
 
 		const outAnimation = Animate.fadeOut(this, { duration: 400 })
 		outAnimation.on(`end`, () => this.parent.removeChild(this))
-		Game.root.addChild(new ResultsScreen({ score: this.score }))
+		Game.root.addChild(new ResultsScreen({ score: this.score, level: this }))
 	}
 	generateCombination() {
 		if (Math.random() > 2 / 3) {
@@ -1390,6 +1420,55 @@ class Score extends GameObject {
 	}
 }
 
+class LevelsScreen extends GameObject {
+	constructor(options) {
+		super({
+			levels: [
+				// {
+				// 	name: `2 BIRDS`,
+				// 	comboLength: 2,
+				// 	board: `e4 1b b4`,
+				// 	time: 30000,
+				// },
+				{
+					name: `3 IN A ROW`,
+					comboLength: 3,
+					board: `c6 c6 c6`,
+					time: 60000,
+				},
+				{
+					name: `GET SQUARE`,
+					comboLength: 4,
+					board: `d4 d4 69`,
+					time: 60000,
+				},
+				{
+					name: `HIGH 5`,
+					comboLength: 5,
+					board: `f1 78 1a`,
+					time: 60000,
+				},
+			],
+			...options,
+		})
+	}
+	createChildren() {
+		return this.levels.map((level, index) => new Button({
+			text: level.name,
+			size: new Vector(Game.viewRes.x - 8, 11),
+			pos: new Vector(4, 4 + (11 + 4) * index),
+			onClick: () => this.playLevel(index),
+		}))
+	}
+	playLevel(index) {
+		const level = this.levels[index]
+		Game.root.addChild(new Level({
+			...level
+		}))
+		this.parent.removeChild(this)
+	}
+}
+
 function range(n) {
 	return new Array(n).fill(null).map((filler, index) => index)
 }
@@ -1432,11 +1511,7 @@ function shuffle(array) {
 
 	// append level
 
-	Game.root.addChild(new Level({
-		comboLength: 4,
-		board: `af 2d c4`,
-		time: 60000,
-	}))
+	Game.root.addChild(new LevelsScreen({}))
 
 	// start game
 
