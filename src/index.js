@@ -47,6 +47,7 @@ class Color {
 		return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a / 255})`
 	}
 }
+Color.white = new Color(255, 255, 255)
 
 class Observable {
 	constructor() {
@@ -173,6 +174,8 @@ class GameSingleton extends Observable {
 		this.subCanvas.height = this.viewRes.y
 		this.subCtx = this.subCanvas.getContext(`2d`)
 
+		this.subCtx.imageSmoothingEnabled = false
+
 		this.root = new GameObject({})
 		this.oldT = 0
 
@@ -237,18 +240,14 @@ const Game = new GameSingleton({
 class GameText extends GameObject {
 	constructor({
 		text = ``,
-		font = `4px Tinier`,
+		font = gameFont,
+		fontSize = 1, // em
 		size = new Vector(),
 		align = `left`,
-		color = new Color(255, 255, 255),
+		color = Color.white,
 		...options
 	}) {
-		super(options)
-		this.text = text
-		this.font = font
-		this.size = size
-		this.align = align
-		this.color = color
+		super({ text, font, fontSize, size, align, color, ...options })
 	}
 	render(ctx) {
 		let startPos = new Vector()
@@ -257,28 +256,43 @@ class GameText extends GameObject {
 				new Vector(this.measure() / 2, 0)
 			)
 		}
-		const { x, y } = startPos
-		// TODO: new lines
+
 		const text = this.get(`text`)
-		ctx.translate(Math.round(x), 0)
+
+		let fromLeft = Math.round(startPos.x)
+		let fromTop = startPos.y
+
 		text.split(``).forEach((char) => {
 			const width = this.font.getWidth(char)
 			const height = this.font.getHeight(char)
 			const offset = this.font.getOffset(char)
 
+			const actualWidth = width * this.fontSize
+			const actualHeight = height * this.fontSize
+
 			ctx.drawImage(
 				this.font.source,
 				offset, 0, width, height,
-				0, 0, width, height
+				fromLeft, fromTop, actualWidth, actualHeight
 			)
 
-			ctx.translate(width, 0)
+			if (!this.color.equals(Color.white)) {
+				const { x: globalX, y: globalY } = this.getGlobalPosition()
+				const imageData = ctx.getImageData(globalX + fromLeft, globalY + fromTop, actualWidth, actualHeight)
+				for (let i = 0; i < imageData.data.length; i += 4) {
+					imageData.data[i] = this.color.r / 255 * imageData.data[i]
+					imageData.data[i + 1] = this.color.g / 255 * imageData.data[i + 1]
+					imageData.data[i + 2] = this.color.b / 255 * imageData.data[i + 2]
+				}
+				ctx.putImageData(imageData, globalX + fromLeft, globalY + fromTop)
+			}
+
+			fromLeft += actualWidth
 		})
-		// ctx.fillText(this.get(`text`), Math.round(x), y)
 	}
 	measure() {
 		return this.get(`text`).split(``).reduce((length, char) => {
-			return length + this.font.getWidth(char)
+			return length + this.font.getWidth(char) * this.fontSize
 		}, 0)
 	}
 }
@@ -580,7 +594,7 @@ class ResultsScreen extends GameObject {
 		return [
 			new GameText({
 				text: `TIME'S UP`,
-				font: gameFont,
+				fontSize: 2,
 				opacity: 0,
 				onMount: function () {
 					Animate.blink(this, { duration: 800 })
@@ -593,7 +607,6 @@ class ResultsScreen extends GameObject {
 			new GameText({
 				text: () => `SCORE: ${this.get(`score`)}`,
 				pos: new Vector(4, 36 + 8 + 4),
-				font: gameFont,
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 1600, duration: 200 })
 				},
@@ -602,7 +615,6 @@ class ResultsScreen extends GameObject {
 			new GameText({
 				text: `BEST: 404`,
 				pos: new Vector(4, 36 + 8 + 4 + 4 + 4),
-				font: gameFont,
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 1800, duration: 200 })
 				},
@@ -775,7 +787,6 @@ class Button extends GameObject {
 
 		this.textObject = new GameText({
 			text: this.text,
-			font: gameFont,
 			size: this.size,
 		})
 		this.textObject.pos = new Vector(
@@ -1273,7 +1284,7 @@ class Level extends GameObject {
 		return [
 			new Score({
 				id: `score`,
-				pos: new Vector(4, 8),
+				pos: new Vector(4, 4),
 				score: () => this.score
 			}),
 			new Combination({
@@ -1362,7 +1373,6 @@ class Score extends GameObject {
 		this.score = score
 		this.labelObject = new GameText({
 			text: () => `${this.get(`score`)}`,
-			font: gameFont,
 			align: `center`,
 			size: new Vector(Game.viewRes.x - 8, 0),
 		})
@@ -1372,10 +1382,7 @@ class Score extends GameObject {
 		const popup = new GameText({
 			text: `+1`,
 			color: new Color(255, 255),
-			align: `center`,
-			font: gameFont,
-			size: new Vector(Game.viewRes.x - 8, 0),
-			pos: new Vector(this.labelObject.measure() + 1, 0),
+			pos: new Vector(Math.round((Game.viewRes.x - 8) / 2 + this.labelObject.measure() / 2), 0),
 		})
 		this.addChild(popup)
 		const liftAnimation = Animate.lift(popup, { duration: 1000 })
