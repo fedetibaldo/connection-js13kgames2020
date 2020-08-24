@@ -7,12 +7,12 @@
 // There is a small bit of optional code to improve compatibility.
 // Feel free to minify it further for your own needs!
 
-'use strict';let zzfx,zzfxV,zzfxX
+'use strict'; let zzfx, zzfxV, zzfxX
 
 // ZzFXMicro - Zuper Zmall Zound Zynth 
-zzfxV=.3 // volume
-zzfx=    // play sound
-(t=1,a=.05,n=220,e=0,f=0,h=.1,M=0,r=1,z=0,o=0,i=0,s=0,u=0,x=0,c=0,d=0,X=0,b=1,m=0,l=44100,B=99+e*l,C=f*l,P=h*l,g=m*l,w=X*l,A=2*Math.PI,D=(t=>0<t?1:-1),I=B+g+C+P+w,S=(z*=500*A/l**2),V=(n*=(1+2*a*Math.random()-a)*A/l),j=D(c)*A/4,k=0,p=0,q=0,v=0,y=0,E=0,F=1,G=[],H=zzfxX.createBufferSource(),J=zzfxX.createBuffer(1,I,l))=>{for(H.connect(zzfxX.destination);q<I;G[q++]=E)++y>100*d&&(y=0,E=k*n*Math.sin(p*c*A/l-j),E=D(E=M?1<M?2<M?3<M?Math.sin((E%A)**3):Math.max(Math.min(Math.tan(E),1),-1):1-(2*E/A%2+2)%2:1-4*Math.abs(Math.round(E/A)-E/A):Math.sin(E))*Math.abs(E)**r*t*zzfxV*(q<B?q/B:q<B+g?1-(q-B)/g*(1-b):q<B+g+C?b:q<I-w?(I-q-w)/P*b:0),E=w?E/2+(w>q?0:(q<I-w?1:(q-I)/w)*G[q-w|0]/2):E),k+=1-x+1e9*(Math.sin(q)+1)%2*x,p+=1-x+1e9*(Math.sin(q)**2+1)%2*x,n+=z+=500*o*A/l**3,F&&++F>s*l&&(n+=i*A/l,V+=i*A/l,F=0),u&&++v>u*l&&(n=V,z=S,v=1,F=F||1);return J.getChannelData(0).set(G),H.buffer=J,H.start(),H},zzfxX=new(window.AudioContext||webkitAudioContext)
+zzfxV = .3 // volume
+zzfx =    // play sound
+	(t = 1, a = .05, n = 220, e = 0, f = 0, h = .1, M = 0, r = 1, z = 0, o = 0, i = 0, s = 0, u = 0, x = 0, c = 0, d = 0, X = 0, b = 1, m = 0, l = 44100, B = 99 + e * l, C = f * l, P = h * l, g = m * l, w = X * l, A = 2 * Math.PI, D = (t => 0 < t ? 1 : -1), I = B + g + C + P + w, S = (z *= 500 * A / l ** 2), V = (n *= (1 + 2 * a * Math.random() - a) * A / l), j = D(c) * A / 4, k = 0, p = 0, q = 0, v = 0, y = 0, E = 0, F = 1, G = [], H = zzfxX.createBufferSource(), J = zzfxX.createBuffer(1, I, l)) => { for (H.connect(zzfxX.destination); q < I; G[q++] = E)++y > 100 * d && (y = 0, E = k * n * Math.sin(p * c * A / l - j), E = D(E = M ? 1 < M ? 2 < M ? 3 < M ? Math.sin((E % A) ** 3) : Math.max(Math.min(Math.tan(E), 1), -1) : 1 - (2 * E / A % 2 + 2) % 2 : 1 - 4 * Math.abs(Math.round(E / A) - E / A) : Math.sin(E)) * Math.abs(E) ** r * t * zzfxV * (q < B ? q / B : q < B + g ? 1 - (q - B) / g * (1 - b) : q < B + g + C ? b : q < I - w ? (I - q - w) / P * b : 0), E = w ? E / 2 + (w > q ? 0 : (q < I - w ? 1 : (q - I) / w) * G[q - w | 0] / 2) : E), k += 1 - x + 1e9 * (Math.sin(q) + 1) % 2 * x, p += 1 - x + 1e9 * (Math.sin(q) ** 2 + 1) % 2 * x, n += z += 500 * o * A / l ** 3, F && ++F > s * l && (n += i * A / l, V += i * A / l, F = 0), u && ++v > u * l && (n = V, z = S, v = 1, F = F || 1); return J.getChannelData(0).set(G), H.buffer = J, H.start(), H }, zzfxX = new (window.AudioContext || webkitAudioContext)
 
 class Vector {
 	constructor(x = 0, y = 0) {
@@ -33,6 +33,9 @@ class Vector {
 	}
 	equals(v) {
 		return this.x == v.x && this.y == v.y
+	}
+	floor() {
+		return new Vector(Math.floor(this.x), Math.floor(this.y))
 	}
 }
 
@@ -138,6 +141,7 @@ class GameObject extends Observable {
 		child.parent = this
 		this.children[index] = child
 		child.trigger(`mount`)
+		this.trigger(`childrenChange`)
 	}
 	getChild(id) {
 		return this.children.find(child => child.id === id)
@@ -152,6 +156,7 @@ class GameObject extends Observable {
 	removeChild(toRemove) {
 		const index = this.children.findIndex(child => child === toRemove)
 		this.children.splice(index, 1)
+		this.trigger(`childrenChange`)
 	}
 	update(deltaT) {
 		this.children.forEach(child => child.update(deltaT))
@@ -284,35 +289,42 @@ class GameText extends GameObject {
 
 		const text = this.get(`text`)
 
+		const height = this.font.getHeight()
+		const actualHeight = height * this.fontSize
+
 		let fromLeft = Math.round(startPos.x)
 		let fromTop = 0 /* startPos.y */
 
-		text.split(``).forEach((char) => {
-			const width = this.font.getWidth(char)
-			const height = this.font.getHeight(char)
-			const offset = this.font.getOffset(char)
+		text.split(`\n`).forEach(line => {
 
-			const actualWidth = width * this.fontSize
-			const actualHeight = height * this.fontSize
+			line.split(``).forEach(char => {
+				const width = this.font.getWidth(char)
+				const offset = this.font.getOffset(char)
 
-			ctx.drawImage(
-				this.font.source,
-				offset, 0, width, height,
-				fromLeft, fromTop, actualWidth, actualHeight
-			)
+				const actualWidth = width * this.fontSize
 
-			if (!this.color.equals(Color.white)) {
-				const { x: globalX, y: globalY } = this.getGlobalPosition()
-				const imageData = ctx.getImageData(globalX + fromLeft, globalY + fromTop, actualWidth, actualHeight)
-				for (let i = 0; i < imageData.data.length; i += 4) {
-					imageData.data[i] = this.color.r / 255 * imageData.data[i]
-					imageData.data[i + 1] = this.color.g / 255 * imageData.data[i + 1]
-					imageData.data[i + 2] = this.color.b / 255 * imageData.data[i + 2]
+				ctx.drawImage(
+					this.font.source,
+					offset, 0, width, height,
+					fromLeft, fromTop, actualWidth, actualHeight
+				)
+
+				if (!this.color.equals(Color.white)) {
+					const { x: globalX, y: globalY } = this.getGlobalPosition()
+					const imageData = ctx.getImageData(globalX + fromLeft, globalY + fromTop, actualWidth, actualHeight)
+					for (let i = 0; i < imageData.data.length; i += 4) {
+						imageData.data[i] = this.color.r / 255 * imageData.data[i]
+						imageData.data[i + 1] = this.color.g / 255 * imageData.data[i + 1]
+						imageData.data[i + 2] = this.color.b / 255 * imageData.data[i + 2]
+					}
+					ctx.putImageData(imageData, globalX + fromLeft, globalY + fromTop)
 				}
-				ctx.putImageData(imageData, globalX + fromLeft, globalY + fromTop)
-			}
 
-			fromLeft += actualWidth
+				fromLeft += actualWidth
+			})
+
+			fromLeft = 0
+			fromTop += Math.round(actualHeight * 3 / 2)
 		})
 	}
 	measure() {
@@ -462,6 +474,27 @@ class Timer extends Observable {
 	}
 }
 
+class Interval extends Observable {
+	constructor(interval) {
+		super()
+		this.interval = interval
+		this.stopped = false
+		this.onTimerCompleted()
+	}
+	onTimerCompleted() {
+		if (!this.stopped) {
+			this.trigger(`tick`)
+			this.timer = new Timer(this.interval)
+			this.timer.on(`completed`, () => this.onTimerCompleted())
+		} else {
+			this.destroy()
+		}
+	}
+	stop() {
+		this.stopped = true
+	}
+}
+
 class GameAnimation extends Observable {
 	constructor({ duration, delay = 0 }) {
 		super()
@@ -523,7 +556,6 @@ class Animate {
 	}
 	static fadeIn(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
-		gameObject.opacity = 0
 		animation.on(`progress`, progress => {
 			gameObject.opacity = progress
 		})
@@ -531,7 +563,6 @@ class Animate {
 	}
 	static fadeOut(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
-		gameObject.opacity = 1
 		animation.on(`progress`, progress => {
 			gameObject.opacity = 1 - progress
 		})
@@ -798,7 +829,7 @@ class Tile extends Area {
 	}) {
 		super(options)
 		this.accentColor = null
-		this.baseColor = new Color(92, 92, 92)
+		this.baseColor = new Color(45, 45, 45)
 		this.currentColor = this.baseColor
 		this.shiftDur = 400
 	}
@@ -1273,7 +1304,7 @@ class GameBoard extends GameObject {
 					return
 				}
 			}
-			zzfx(...[,0,100,.02,.05,.02,,,,,100,.05]);
+			zzfx(...[, 0, 100, .02, .05, .02, , , , , 100, .05]);
 			this.tilesPlayed.push(coord)
 			this.comboPlayed.push(value)
 			tile.accentColor = new Color(255, 255)
@@ -1305,7 +1336,7 @@ class GameBoard extends GameObject {
 				Animate.shake(tile, { duration: 200 })
 			})
 			// zzfx(...[,0,202,.03,.04,.01,2,,,,,,,,1.9,,,,.01]); // Random 50
-			zzfx(...[,0,300,.03,.04,.01,1,,,,,,,,2.5,,,,.01]); // Random 50
+			zzfx(...[, 0, 300, .03, .04, .01, 1, , , , , , , , 2.5, , , , .01]); // Random 50
 		}
 		this.comboPlayed = []
 		this.tilesPlayed = []
@@ -1417,7 +1448,7 @@ class Level extends GameObject {
 			// /* this.turn % 4 == 0 && */ zzfx(...[,0,200,.03,.05,.09,,,5,10,200,.12,,,,,.13,,.05]); // Select - Mutation 9
 			// this.turn % 4 == 1 && zzfx(...[,0,800,.02,.05,.36,1,,,,200,.12,.12,,,,.12,,.05]); // Select - Mutation 9
 			// this.turn % 4 == 2 && zzfx(...[,0,800,.01,.025,.18,1,,,,200,.06,.06,,,,.06,,.025]); // Select - Mutation 9
-			/* this.turn % 4 == 3 && */ zzfx(...[,0,800,.01,.025,.18,,,,,200,.06,,,,,,2,.025]); // Select - Mutation 9
+			/* this.turn % 4 == 3 && */ zzfx(...[, 0, 800, .01, .025, .18, , , , , 200, .06, , , , , , 2, .025]); // Select - Mutation 9
 			this.getChild(`score`).increment()
 		}
 		this.turn++
@@ -1439,7 +1470,7 @@ class Level extends GameObject {
 			this.getChild(`countdown`).reduceBy(2000)
 			Animate.shake(this.getChild(`combination`), { duration: 200 })
 			Animate.shake(this.getChild(`board`), { duration: 200 })
-			zzfx(...[,0,202,.03,.04,.01,2,,,,,,,,1.9,,,,.01]); // Random 50
+			zzfx(...[, 0, 202, .03, .04, .01, 2, , , , , , , , 1.9, , , , .01]); // Random 50
 		} else if (this.combo.length) {
 			this.nextTurn()
 		}
@@ -1582,6 +1613,187 @@ class Menu extends GameObject {
 	}
 }
 
+class Flexbox extends GameObject {
+	onChildrenChange() {
+		const direction = new Vector(
+			this.direction == `row` ? 1 : 0,
+			this.direction == `column` ? 1 : 0
+		)
+		const spaceBetween = direction.mul(this.spaceBetween)
+		const childrenCumulativeSize = this.children.reduce(
+			(size, child) => {
+				const toAdd = new Vector()
+				for (let dimension of [`x`, `y`]) {
+					if (direction[dimension]) {
+						toAdd[dimension] = child.size[dimension]
+					} else if (size[dimension] < child.size[dimension]) {
+						toAdd[dimension] = child.size[dimension] - size[dimension]
+					}
+				}
+				return size.add(toAdd)
+			},
+			new Vector()
+		)
+		const childrenTotalSize = childrenCumulativeSize.add(spaceBetween.mul(this.children.length - 1))
+
+		let offset = this.size.mul(1 / 2).diff(childrenTotalSize.mul(1 / 2))
+
+		this.children.forEach(child => {
+			child.pos = offset.floor()
+			offset = offset.add(new Vector(
+				child.size.x * direction.x,
+				child.size.y * direction.y
+			)).add(spaceBetween)
+		})
+	}
+}
+
+class Title extends GameObject {
+	createChildren() {
+		const duration = 400
+		const delay = 400
+		const slideAmount = 15
+		const tweenedMovement = function () {
+			Animate.slide(this, { delay, duration, to: this.pos.diff(new Vector(slideAmount)) })
+		}
+		const tilePos = (new Vector(this.size.x / 2 - 11 / 2, 0)).floor()
+		return [
+			new Tile({
+				pos: tilePos,
+				size: new Vector(11, 11),
+				onMount: tweenedMovement,
+			}),
+			new Rectangle({
+				pos: tilePos.add(new Vector(10, 3)),
+				size: new Vector(1, 5),
+				color: new Color(45, 45, 45),
+				onMount: tweenedMovement,
+			}),
+			new Rectangle({
+				pos: tilePos.add(new Vector(10, 3)),
+				size: new Vector(1, 5),
+				opacity: 0,
+				onMount: function () {
+					Animate.fadeIn(this, { delay, duration })
+					tweenedMovement.call(this)
+				}
+			}),
+			new GameText({
+				pos: tilePos.add(new Vector(-27, 4)),
+				text: `ONNECTION`,
+				onMount: function () {
+					Animate.slide(this, { delay, duration, to: this.pos.add(new Vector(18)) })
+				}
+			}),
+			new Rectangle({
+				pos: tilePos.add(new Vector(0, 3)),
+				size: new Vector(1, 5),
+				color: new Color(45, 45, 45),
+				onMount: tweenedMovement,
+			}),
+			new Rectangle({
+				pos: tilePos.add(new Vector(0, 3)),
+				size: new Vector(1, 5),
+				opacity: 0,
+				onMount: function () {
+					Animate.fadeIn(this, { delay, duration })
+					tweenedMovement.call(this)
+				}
+			}),
+			new Rectangle({
+				pos: tilePos.add(new Vector(-Game.viewRes.x, 3)),
+				size: new Vector(Game.viewRes.x, 5),
+				onMount: tweenedMovement,
+			}),
+			new GameText({
+				pos: tilePos.add(new Vector(2, 4)),
+				text: `C`,
+				onMount: function () {
+					Animate.slide(this, { delay, duration, to: this.pos.diff(new Vector(slideAmount + 4)) })
+				}
+			}),
+			new Rectangle({
+				pos: tilePos.add(new Vector(1, 3)),
+				size: new Vector(9, 5),
+				onMount: tweenedMovement
+			}),
+			new ColoredSprite({
+				pos: tilePos.add(new Vector(2, 2)),
+				size: new Vector(7, 7),
+				img: getAsset(fromDataToAsset(2)),
+				onMount: tweenedMovement,
+			}),
+		]
+	}
+}
+
+class OpeningScreen extends GameObject {
+	createChildren() {
+		return [
+			new GameText({
+				text: `FEDETIBALDO\nPRESENTS`,
+				pos: new Vector(4, Game.viewRes.y - 4 - 4 - 2),
+				opacity: 0,
+				onMount: function () {
+					Animate.fadeIn(this, { duration: 1000 })
+					Animate.fadeOut(this, { duration: 1000, delay: 1500 })
+				},
+			}),
+			new Flexbox({
+				size: Game.viewRes,
+				align: `center`,
+				justify: `center`,
+				direction: `row`,
+				spaceBetween: 2,
+				opacity: 0,
+				onMount: function () {
+					const initialChildrenCount = 4
+					const lifeSpan = 600
+					const animation = Animate.fadeIn(this, { duration: initialChildrenCount * lifeSpan, delay: 2500 })
+					animation.on(`start`, () => {
+						this.addChildren(range(4).map(index => new Tile({
+							size: new Vector(11, 11),
+							createChildren: function () {
+								return [this.createChild(index - 1)]
+							},
+							createChild: (assetIndex) => {
+								return new ColoredSprite({
+									pos: new Vector(2, 2),
+									size: new Vector(7, 7),
+									img: getAsset(fromDataToAsset(Math.abs(assetIndex % 4))),
+								})
+							},
+							onMount: function () {
+								const life = new Timer((index + 1) * lifeSpan)
+
+								const interval = new Interval(0)
+								let currentAssetIndex = index - 1
+								interval.on(`tick`, () => {
+									interval.interval = life.progress / initialChildrenCount / 4
+									currentAssetIndex = (currentAssetIndex + 1) % 4
+									this.children[0].destroy()
+									this.addChild(this.createChild(currentAssetIndex))
+								})
+
+								life.on(`completed`, () => {
+									this.destroy()
+									interval.stop()
+								})
+							},
+						})))
+					})
+					animation.on(`end`, () => {
+						this.addChild(new Title({
+							pos: new Vector(),
+							size: new Vector(45, 11)
+						}))
+					})
+				},
+			})
+		]
+	}
+}
+
 function range(n) {
 	return new Array(n).fill(null).map((filler, index) => index)
 }
@@ -1624,7 +1836,7 @@ function shuffle(array) {
 
 	// append level
 
-	Game.root.addChild(new Menu({}))
+	Game.root.addChild(new OpeningScreen({}))
 
 	// start game
 
