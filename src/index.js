@@ -402,12 +402,12 @@ class InputSingleton extends Observable {
 		super()
 
 		this.isMouseDown = false
+		this.isTouchDevice = false
 		this.mousePos = new Vector(0, 0)
 
 		Game.canvas.onmousedown = (e) => this.onCanvasMouseDown(e)
 		Game.canvas.onmouseup = (e) => this.onCanvasMouseUp(e)
 		Game.canvas.onmousemove = (e) => this.onCanvasMouseMove(e)
-		Game.canvas.onclick = (e) => this.onCanvasClick(e)
 
 		Game.canvas.ontouchstart = (e) => this.onCanvasTouchStart(e)
 		Game.canvas.ontouchend = (e) => this.onCanvasTouchEnd(e)
@@ -426,8 +426,10 @@ class InputSingleton extends Observable {
 		this.onCanvasMouseMove(e)
 	}
 	_normalizeTouchEvent(e) {
+		this.isTouchDevice = true
 		e.clientX = e.changedTouches[0].clientX
 		e.clientY = e.changedTouches[0].clientY
+		e.isTouchEvent = true
 		return e
 	}
 	onCanvasMouseDown(e) {
@@ -441,10 +443,10 @@ class InputSingleton extends Observable {
 	onCanvasMouseMove(e) {
 		this.triggerMouseEvent(`mousemove`, e)
 	}
-	onCanvasClick(e) {
-		this.triggerMouseEvent(`click`, e)
-	}
 	triggerMouseEvent(name, e) {
+		if (!e.isTouchEvent && this.isTouchDevice) {
+			return
+		}
 		const pos = this._normalizePosition(new Vector(e.clientX, e.clientY))
 		this.mousePos = pos
 		this.trigger(name, { name, pos })
