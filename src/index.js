@@ -786,19 +786,19 @@ class ColoredSprite extends GameObject {
 
 class Area extends GameObject {
 	constructor({
-		size,
+		size = new Vector(),
 		...options
 	}) {
-		super(options)
-		this.size = size
+		super({ size, ...options })
 
 		this.isInside = false
+		this.isPressed = false
+
 		// event listeners
 		this.listeners = [
 			Input.on(`mouseup`, (e) => this.onMouseEvent(`mouseup`, e)),
 			Input.on(`mousedown`, (e) => this.onMouseEvent(`mousedown`, e)),
 			Input.on(`mousemove`, (e) => this.onMouseEvent(`mousemove`, e)),
-			Input.on(`click`, (e) => this.onMouseEvent(`click`, e)),
 		]
 	}
 	destroy() {
@@ -812,10 +812,18 @@ class Area extends GameObject {
 				this.trigger(`mouseenter`, event)
 				this.isInside = true
 			}
+			if (name == `mousedown`) {
+				this.isPressed = true
+			}
 			this.trigger(name, event)
+			if (name == `mouseup` && this.isPressed) {
+				this.trigger(`click`, event)
+				this.isPressed = false
+			}
 		} else {
 			if (this.isInside) {
 				this.trigger(`mouseexit`, event)
+				this.isPressed = false
 			}
 			this.isInside = false
 		}
@@ -864,7 +872,7 @@ class Tile extends Area {
 	}
 }
 
-class Button extends GameObject {
+class Button extends Area {
 	constructor({
 		text = ``,
 		size = new Vector(),
@@ -877,25 +885,15 @@ class Button extends GameObject {
 			border: 1,
 			...options
 		})
-
-		this.isPressed = false
 	}
 	createChildren() {
 		return [
-			new Area({
-				size: this.size,
-				onMousedown: () => this.onAreaMouseDown(),
-				onMouseexit: () => this.isPressed = false,
-				onMouseup: () => this.onAreaMouseUp(),
-				children: [
 					new GameText({
 						text: this.text,
 						align: this.align,
 						size: this.size.diff(new Vector(this.padding + this.border, this.padding + this.border).mul(2)),
 						pos: new Vector(this.padding + this.border, this.padding + this.border),
 					})
-				],
-			})
 		]
 	}
 	render(ctx) {
