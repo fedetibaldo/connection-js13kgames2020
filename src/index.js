@@ -111,7 +111,7 @@ class GameObject extends Observable {
 		scale = 1,
 		children = null,
 		...unknownOptions
-	}) {
+	} = {}) {
 		super()
 
 		this.pos = pos
@@ -888,12 +888,12 @@ class Button extends Area {
 	}
 	createChildren() {
 		return [
-					new GameText({
-						text: this.text,
-						align: this.align,
-						size: this.size.diff(new Vector(this.padding + this.border, this.padding + this.border).mul(2)),
-						pos: new Vector(this.padding + this.border, this.padding + this.border),
-					})
+			new GameText({
+				text: this.text,
+				align: this.align,
+				size: this.size.diff(new Vector(this.padding + this.border, this.padding + this.border).mul(2)),
+				pos: new Vector(this.padding + this.border, this.padding + this.border),
+			})
 		]
 	}
 	render(ctx) {
@@ -1548,23 +1548,33 @@ class LevelsScreen extends GameObject {
 		})
 	}
 	createChildren() {
+		const padding = new Vector(4, 4)
+		const flexSize = Game.viewRes.diff(padding.mul(2))
 		return [
-			new Area({
-				pos: new Vector(4, 4),
-				size: new Vector((Game.viewRes.x / 2) - 6, 4),
-				onClick: () => this.back(),
+			new Flexbox({
+				pos: padding,
+				size: flexSize,
+				direction: `column`,
+				justify: `start`,
+				align: `start`,
+				spaceBetween: 4,
 				children: [
-					new GameText({
-						text: `< BACK`,
+					new Area({
+						size: new Vector(flexSize.x / 2, 4),
+						onClick: () => this.back(),
+						children: [
+							new GameText({
+								text: `< BACK`,
+							}),
+						],
 					}),
+					...this.levels.map((level, index) => new Button({
+						text: level.name,
+						size: new Vector(flexSize.x, 11),
+						onClick: () => this.playLevel(index),
+					})),
 				],
 			}),
-			...this.levels.map((level, index) => new Button({
-				text: level.name,
-				size: new Vector(Game.viewRes.x - 8, 11),
-				pos: new Vector(4, 4 + 4 + 4 + (11 + 4) * index),
-				onClick: () => this.playLevel(index),
-			}))
 		]
 	}
 	back() {
@@ -1582,18 +1592,21 @@ class LevelsScreen extends GameObject {
 
 class Menu extends GameObject {
 	createChildren() {
+		const offset = new Vector(0, 4)
 		const padding = new Vector(4, 4)
-		const flexSize = Game.viewRes.diff(padding.mul(2))
+		const flexSize = Game.viewRes.diff(padding.mul(2)).diff(offset)
 		return [
 			new Flexbox({
-				pos: padding,
+				pos: offset.add(padding),
 				size: flexSize,
 				align: `center`,
 				justify: `start`,
 				direction: `column`,
 				spaceBetween: 4,
 				children: [
-					new Title(),
+					new Title({
+						size: new Vector(45, 11 + 4),
+					}),
 					new Button({
 						text: `LEVELS`,
 						size: new Vector(flexSize.x, 11),
@@ -1603,6 +1616,16 @@ class Menu extends GameObject {
 						text: `ARCADE`,
 						size: new Vector(flexSize.x, 11),
 						onClick: () => this.playArcade(),
+					}),
+					new Button({
+						text: `TROPHIES`,
+						size: new Vector(flexSize.x, 11),
+						onClick: () => this.browseLevels(),
+					}),
+					new Button({
+						text: `TUTORIAL`,
+						size: new Vector(flexSize.x, 11),
+						onClick: () => this.browseLevels(),
 					}),
 				],
 			}),
@@ -1866,7 +1889,7 @@ function shuffle(array) {
 
 	// append level
 
-	Game.root.addChild(new Menu({}))
+	Game.root.addChild(new Menu())
 
 	// start game
 
