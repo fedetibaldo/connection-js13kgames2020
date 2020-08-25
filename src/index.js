@@ -1504,7 +1504,7 @@ class Score extends GameObject {
 }
 
 class Arcade extends Level {
-	constructor(options) {
+	constructor(options = {}) {
 		super({
 			...options,
 			comboLength: 3,
@@ -1522,7 +1522,7 @@ class Arcade extends Level {
 }
 
 class LevelsScreen extends GameObject {
-	constructor(options) {
+	constructor(options = {}) {
 		super({
 			levels: [
 				{
@@ -1588,70 +1588,106 @@ class LevelsScreen extends GameObject {
 
 class Menu extends GameObject {
 	createChildren() {
+		const padding = new Vector(4, 4)
+		const flexSize = Game.viewRes.diff(padding.mul(2))
 		return [
-			new Button({
-				text: `LEVELS`,
-				size: new Vector(Game.viewRes.x - 8, 11),
-				pos: new Vector(4, 4),
-				onClick: () => this.browseLevels(),
-			}),
-			new Button({
-				text: `ARCADE`,
-				size: new Vector(Game.viewRes.x - 8, 11),
-				pos: new Vector(4, 4 + 11 + 4),
-				onClick: () => this.playArcade(),
+			new Flexbox({
+				pos: padding,
+				size: flexSize,
+				align: `center`,
+				justify: `start`,
+				direction: `column`,
+				spaceBetween: 4,
+				children: [
+					new Title(),
+					new Button({
+						text: `LEVELS`,
+						size: new Vector(flexSize.x, 11),
+						onClick: () => this.browseLevels(),
+					}),
+					new Button({
+						text: `ARCADE`,
+						size: new Vector(flexSize.x, 11),
+						onClick: () => this.playArcade(),
+					}),
+				],
 			}),
 		]
 	}
 	browseLevels() {
-		Game.root.addChild(new LevelsScreen({}))
+		Game.root.addChild(new LevelsScreen())
 		this.destroy()
 	}
 	playArcade() {
-		Game.root.addChild(new Arcade({}))
+		Game.root.addChild(new Arcade())
 		this.destroy()
 	}
 }
 
 class Flexbox extends GameObject {
+	constructor({
+		direction = `row`,
+		spaceBetween = 0,
+		align = `center`,
+		justify = `center`,
+		...options
+	}) {
+		super({ direction, spaceBetween, align, justify, ...options })
+	}
 	onChildrenChange() {
-		const direction = new Vector(
-			this.direction == `row` ? 1 : 0,
-			this.direction == `column` ? 1 : 0
-		)
-		const spaceBetween = direction.mul(this.spaceBetween)
+		const mainAxis = this.direction == `row` ? `x` : `y`
+		const secondaryAxis = this.direction == `row` ? `y` : `x`
+
+		const direction = new Vector()
+		direction[mainAxis] = 1
+
 		const childrenCumulativeSize = this.children.reduce(
-			(size, child) => {
-				const toAdd = new Vector()
-				for (let dimension of [`x`, `y`]) {
-					if (direction[dimension]) {
-						toAdd[dimension] = child.size[dimension]
-					} else if (size[dimension] < child.size[dimension]) {
-						toAdd[dimension] = child.size[dimension] - size[dimension]
-					}
-				}
-				return size.add(toAdd)
-			},
+			(size, child) => size.add(child.size),
 			new Vector()
 		)
-		const childrenTotalSize = childrenCumulativeSize.add(spaceBetween.mul(this.children.length - 1))
+		const spaceBetweenVector = direction.mul(this.spaceBetween)
+		const childrenTotalSize = childrenCumulativeSize.add(spaceBetweenVector.mul(this.children.length - 1))
 
-		let offset = this.size.mul(1 / 2).diff(childrenTotalSize.mul(1 / 2))
+		const offset = new Vector()
+
+		/* The main axis offset is global and increments child after child */
+
+		// justify == `start` -> offset[mainAxis] = 0 (already is)
+		if (this.justify == `center`) {
+			offset[mainAxis] = this.size.mul(1/2).diff(childrenTotalSize.mul(1/2))[mainAxis]
+		} else if (this.justify == `end`) {
+			offset[mainAxis] = this.size.diff(childrenTotalSize)[mainAxis]
+		}
 
 		this.children.forEach(child => {
+
+			/* The secondary axis offset is local and child-dependent */
+
+			// align == `start` -> offset[secondaryAxis] = 0 (already is)
+			if (this.align == `center`) {
+				offset[secondaryAxis] = this.size.mul(1/2).diff(child.size.mul(1/2))[secondaryAxis]
+			} else if (this.align == `end`) {
+				offset[secondaryAxis] = this.size.diff(child.size)[secondaryAxis]
+			}
+
 			child.pos = offset.floor()
-			offset = offset.add(new Vector(
-				child.size.x * direction.x,
-				child.size.y * direction.y
-			)).add(spaceBetween)
+			offset[mainAxis] += child.size[mainAxis] + spaceBetweenVector[mainAxis]
 		})
 	}
 }
 
 class Title extends GameObject {
+	constructor({
+		size = new Vector(45, 11),
+		...options
+	} = {}) {
+		super({ size, ...options })
+	}
 	createChildren() {
 		const duration = 400
 		const delay = 400
+		// const expectedGlobalPosition = new Vector(Game.viewRes.x / 2 - this.size.x / 2, 11).floor()
+		// Animate.slide(this, { duration, delay: duration + delay * 2, to: this.pos.diff(this.getGlobalPosition().diff(expectedGlobalPosition)) })
 		const slideAmount = 15
 		const tweenedMovement = function () {
 			Animate.slide(this, { delay, duration, to: this.pos.diff(new Vector(slideAmount)) })
@@ -1736,7 +1772,8 @@ class OpeningScreen extends GameObject {
 				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { duration: 1000 })
-					Animate.fadeOut(this, { duration: 1000, delay: 1500 })
+					const outAnimation = Animate.fadeOut(this, { duration: 1000, delay: 1500 })
+					outAnimation.on(`end`, () => this.destroy())
 				},
 			}),
 			new Flexbox({
@@ -1783,10 +1820,9 @@ class OpeningScreen extends GameObject {
 						})))
 					})
 					animation.on(`end`, () => {
-						this.addChild(new Title({
-							pos: new Vector(),
-							size: new Vector(45, 11)
-						}))
+						// const size = new Vector(45, 11)
+						this.addChild(new Title({}))
+						// this.destroy()
 					})
 				},
 			})
@@ -1836,7 +1872,7 @@ function shuffle(array) {
 
 	// append level
 
-	Game.root.addChild(new OpeningScreen({}))
+	Game.root.addChild(new Menu({}))
 
 	// start game
 
