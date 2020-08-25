@@ -67,6 +67,9 @@ class Color {
 	}
 }
 Color.white = new Color(255, 255, 255)
+Color.darkGrey = new Color(33, 33, 33)
+Color.grey = new Color(45, 45, 45)
+Color.lightGrey = new Color(92, 92, 92)
 
 class Observable {
 	constructor() {
@@ -829,7 +832,7 @@ class Tile extends Area {
 	}) {
 		super(options)
 		this.accentColor = null
-		this.baseColor = new Color(45, 45, 45)
+		this.baseColor = Color.grey
 		this.currentColor = this.baseColor
 		this.shiftDur = 400
 	}
@@ -893,18 +896,9 @@ class Button extends GameObject {
 			})
 		]
 	}
-	onAreaMouseDown() {
-		this.isPressed = true
-	}
-	onAreaMouseUp() {
-		if (this.isPressed) {
-			this.trigger(`click`)
-		}
-		this.isPressed = false
-	}
 	render(ctx) {
-		ctx.strokeStyle = (new Color(92, 92, 92)).toString()
-		ctx.fillStyle = (new Color(33, 33, 33)).toString()
+		ctx.strokeStyle = Color.lightGrey.toString()
+		ctx.fillStyle = Color.darkGrey.toString()
 
 		if (!this.isPressed) {
 			ctx.fillRect(0, 0, this.size.x, this.size.y)
@@ -1702,7 +1696,7 @@ class Title extends GameObject {
 			new Rectangle({
 				pos: tilePos.add(new Vector(10, 3)),
 				size: new Vector(1, 5),
-				color: new Color(45, 45, 45),
+				color: Color.grey,
 				onMount: tweenedMovement,
 			}),
 			new Rectangle({
@@ -1724,7 +1718,7 @@ class Title extends GameObject {
 			new Rectangle({
 				pos: tilePos.add(new Vector(0, 3)),
 				size: new Vector(1, 5),
-				color: new Color(45, 45, 45),
+				color: Color.grey,
 				onMount: tweenedMovement,
 			}),
 			new Rectangle({
