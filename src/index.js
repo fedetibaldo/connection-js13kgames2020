@@ -375,8 +375,7 @@ class GameFont {
 		return this.charsMap.get(char)
 	}
 
-	getHeight(char) {
-		// character independent
+	getHeight() {
 		return this.meta.height
 	}
 
@@ -396,6 +395,42 @@ class GameFont {
 }
 
 const gameFont = new GameFont(`./assets/font.png`, `./assets/font.meta.json`)
+
+class Spritesheet {
+	constructor(sourcePath, meta) {
+		this.sourcePath = sourcePath
+		this.source = new Image()
+		this.meta = meta
+	}
+	async load() {
+		// fetch resources
+		await new Promise(resolve => {
+			this.source.onload = resolve
+			this.source.src = this.sourcePath
+		})
+	}
+	getIndex(name) {
+		return this.meta.assetNames.indexOf(name)
+	}
+	getHeight() {
+		return this.meta.height
+	}
+	getWidth() {
+		return this.meta.width
+	}
+	getOffset(index) {
+		if (isNaN(parseInt(index))) {
+			index = this.getIndex(index)
+		}
+		return this.meta.width * index
+	}
+}
+
+const assets = new Spritesheet(`./assets/sprites.png`, {
+	width: 7,
+	height: 7,
+	assetNames: [`triangle`, `square`, `circle`, `cross`],
+})
 
 class InputSingleton extends Observable {
 	constructor() {
@@ -714,35 +749,44 @@ class ResultsScreen extends GameObject {
 
 class Sprite extends GameObject {
 	constructor({
-		img = new Image(),
+		asset = ``,
+		spritesheet = assets,
 		...options
 	}) {
-		super(options)
-		this.img = img
+		super({ asset, spritesheet, ...options})
 	}
 	render(ctx) {
-		ctx.drawImage(this.img, 0, 0,)
+		ctx.drawImage(
+			this.spritesheet.source,
+			this.spritesheet.getOffset(this.asset), 0,
+			this.spritesheet.getWidth(), this.spritesheet.getHeight(),
+			0, 0, this.spritesheet.getWidth(), this.spritesheet.getHeight()
+		)
 		super.render(ctx)
 	}
 }
 
 class ColoredSprite extends GameObject {
 	constructor({
-		img = new Image(),
+		asset = ``,
+		spritesheet = assets,
 		size = new Vector(),
 		...options
 	}) {
-		super(options)
-		this.img = img
-		this.size = size
+		super({ asset, spritesheet, size, ...options })
+
 		this.accentColor = null
 		this.shiftDur = 200
+
 		this.canvas = document.createElement('canvas')
-		this.canvas.width = this.size.x
-		this.canvas.height = this.size.y
+		this.canvas.width = spritesheet.getWidth()
+		this.canvas.height = spritesheet.getHeight()
 		this.ctx = this.canvas.getContext('2d')
-		this.ctx.drawImage(this.img, 0, 0)
-		this.colorArray = this.toColorArray(this.ctx.getImageData(0, 0, 7, 7))
+
+		const ogSprite = new Sprite({ asset, spritesheet })
+		ogSprite.render(this.ctx)
+
+		this.colorArray = this.toColorArray(this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height))
 		this.baseColor = this.colorArray.find(color => color.a == 255)
 		this.currentColor = this.baseColor
 	}
@@ -914,23 +958,6 @@ class Button extends Area {
 	}
 }
 
-const assets = {
-	triangle: `./assets/triangle.png`,
-	square: `./assets/square.png`,
-	circle: `./assets/circle.png`,
-	cross: `./assets/cross.png`,
-}
-
-
-function getAsset(name) {
-	return assets[name]
-}
-
-function fromDataToAsset(id) {
-	const assetMap = [`triangle`, `square`, `circle`, `cross`]
-	return assetMap[id]
-}
-
 /**
  * Transform stored data from base 16 to base 4
  * @param {string} data A hexadecimal number
@@ -1004,7 +1031,7 @@ class Combination extends GameObject {
 		const padding = 2
 		const boxW = spriteW + padding
 		return combination.map((value, index) => new ColoredSprite({
-			img: getAsset(fromDataToAsset(value)),
+			asset: value,
 			size: new Vector(7, 7),
 			pos: new Vector(Game.viewRes.x / 2 - Math.floor((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
 		}))
@@ -1120,7 +1147,7 @@ class GameBoard extends GameObject {
 				new ColoredSprite({
 					pos: new Vector(2, 2),
 					size: new Vector(7, 7),
-					img: getAsset(fromDataToAsset(value)),
+					asset: value,
 				})
 			],
 			onMousedown: function () {
@@ -1205,7 +1232,7 @@ class GameBoard extends GameObject {
 		return this.getCoordFromIndex(this.getIndexFromTile(tile))
 	}
 	getValue(coord) {
-		return Object.keys(assets).findIndex(key => assets[key] == this.getTile(coord).children[0].img)
+		return this.getTile(coord).children[0].asset
 	}
 	getBorderingPositions(pos, exploredPositions = []) {
 		const positions = []
@@ -1773,7 +1800,7 @@ class Title extends GameObject {
 			new ColoredSprite({
 				pos: tilePos.add(new Vector(2, 2)),
 				size: new Vector(7, 7),
-				img: getAsset(fromDataToAsset(2)),
+				asset: `circle`,
 				onMount: tweenedMovement,
 			}),
 		]
@@ -1814,7 +1841,7 @@ class OpeningScreen extends GameObject {
 								return new ColoredSprite({
 									pos: new Vector(2, 2),
 									size: new Vector(7, 7),
-									img: getAsset(fromDataToAsset(Math.abs(assetIndex % 4))),
+									asset: Math.abs(assetIndex % 4),
 								})
 							},
 							onMount: function () {
@@ -1873,25 +1900,12 @@ function shuffle(array) {
 }
 
 (async function () {
-
 	// load assets
-
-	await gameFont.load()
-
-	await Promise.all(Object.keys(assets).map(async key => {
-		const img = new Image()
-		await new Promise((resolve) => {
-			img.onload = resolve
-			img.src = assets[key]
-		})
-		assets[key] = img
-	}))
+	await Promise.all([gameFont.load(), assets.load()])
 
 	// append level
-
 	Game.root.addChild(new Menu())
 
 	// start game
-
 	Game.play()
 })()
