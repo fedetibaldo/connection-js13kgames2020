@@ -1,6 +1,6 @@
 | Measure | Size (kb) | Size (bytes) | Reduction |
 | --- | --- | --- | --- |
-| Raw Source Code | 50.07 kb | 51270 | NA |
-| Build | 30.81 kb | 31548 | -38% |
-| Compressed Build | 9.95 kb | 10188 | -68% |
-| Compressed Build (advzip) | 9.38 kb | 9604 | -6% |
+| Raw Source Code | 50.71 kb | 51932 | NA |
+| Build | 31.19 kb | 31942 | -38% |
+| Compressed Build | 10.05 kb | 10292 | -68% |
+| Compressed Build (advzip) | 9.48 kb | 9707 | -6% |

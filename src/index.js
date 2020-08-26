@@ -34,6 +34,9 @@ class Vector {
 	equals(v) {
 		return this.x == v.x && this.y == v.y
 	}
+	round() {
+		return new Vector(Math.round(this.x), Math.round(this.y))
+	}
 	floor() {
 		return new Vector(Math.floor(this.x), Math.floor(this.y))
 	}
@@ -109,7 +112,7 @@ class GameObject extends Observable {
 		pos = new Vector(),
 		opacity = 1,
 		scale = 1,
-		children = null,
+		children = [],
 		...unknownOptions
 	} = {}) {
 		super()
@@ -123,7 +126,8 @@ class GameObject extends Observable {
 			this[key] = unknownOptions[key]
 		}
 
-		this.addChildren(children || this.createChildren())
+		this.addChildren(children)
+		this.addChildren(this.createChildren())
 	}
 	destroy() {
 		super.destroy()
@@ -167,7 +171,7 @@ class GameObject extends Observable {
 	render(ctx) {
 		this.children.forEach(child => {
 			ctx.save()
-			const { x, y } = child.pos
+			const { x, y } = child.pos.round()
 			ctx.translate(x, y)
 			ctx.scale(child.scale, child.scale)
 			ctx.globalAlpha = child.opacity * this.getGlobalOpacity()
@@ -429,7 +433,7 @@ class Spritesheet {
 const assets = new Spritesheet(`./assets/sprites.png`, {
 	width: 7,
 	height: 7,
-	assetNames: [`triangle`, `square`, `circle`, `cross`],
+	assetNames: [`triangle`, `square`, `circle`, `cross`, `lock`],
 })
 
 class InputSingleton extends Observable {
@@ -919,39 +923,52 @@ class Tile extends Area {
 class Button extends Area {
 	constructor({
 		text = ``,
+		locked = false,
 		size = new Vector(),
 		align = `left`,
 		...options
 	}) {
 		super({
 			text, size, align,
+			locked,
 			padding: 3,
 			border: 1,
 			...options
 		})
+		if (this.locked) {
+			this.opacity = 0.5
+			this.onClick = () => Animate.shake(this, { duration: 200 })
+		}
 	}
 	createChildren() {
-		return [
+		const children = [
 			new GameText({
 				text: this.text,
 				align: this.align,
 				size: this.size.diff(new Vector(this.padding + this.border, this.padding + this.border).mul(2)),
 				pos: new Vector(this.padding + this.border, this.padding + this.border),
-			})
+			}),
 		]
+		if (this.locked) {
+			children.push(new Sprite({
+				asset: `lock`,
+				pos: new Vector(this.size.x - 8, 3),
+			}))
+		}
+		return children
 	}
 	render(ctx) {
 		ctx.strokeStyle = Color.lightGrey.toString()
 		ctx.fillStyle = Color.darkGrey.toString()
 
-		if (!this.isPressed) {
+		if (!this.isPressed || this.locked) {
 			ctx.fillRect(0, 0, this.size.x, this.size.y)
 		}
 		ctx.strokeRect(
-			(this.isPressed ? 1.5 : 0.5),
-			(this.isPressed ? 1.5 : 0.5),
-			this.size.x - (this.isPressed ? 3 : 1),
-			this.size.y - (this.isPressed ? 3 : 1)
+			(this.isPressed && !this.locked ? 1.5 : 0.5),
+			(this.isPressed && !this.locked ? 1.5 : 0.5),
+			this.size.x - (this.isPressed && !this.locked ? 3 : 1),
+			this.size.y - (this.isPressed && !this.locked ? 3 : 1)
 		)
 
 		super.render(ctx)
@@ -1549,24 +1566,28 @@ class LevelsScreen extends GameObject {
 				{
 					name: `3 IN A ROW`,
 					comboLength: 3,
+					locked: false,
 					board: `c6 c6 c6`,
 					time: 60000,
 				},
 				{
 					name: `GET SQUARE`,
 					comboLength: 4,
+					locked: true,
 					board: `55 55 55`,
 					time: 60000,
 				},
 				{
 					name: `HIGH FIVE`,
 					comboLength: 5,
+					locked: true,
 					board: `f1 78 1a`,
 					time: 60000,
 				},
 				{
 					name: `SIX PACK`,
 					comboLength: 6,
+					locked: true,
 					board: `eb 69 28`,
 					time: 60000,
 				},
@@ -1597,6 +1618,7 @@ class LevelsScreen extends GameObject {
 					}),
 					...this.levels.map((level, index) => new Button({
 						text: level.name,
+						locked: level.locked,
 						size: new Vector(flexSize.x, 11),
 						onClick: () => this.playLevel(index),
 					})),
@@ -1610,10 +1632,12 @@ class LevelsScreen extends GameObject {
 	}
 	playLevel(index) {
 		const level = this.levels[index]
-		Game.root.addChild(new Level({
-			...level
-		}))
-		this.destroy()
+		if (!level.locked) {
+			Game.root.addChild(new Level({
+				...level
+			}))
+			this.destroy()
+		}
 	}
 }
 
@@ -1641,6 +1665,7 @@ class Menu extends GameObject {
 					}),
 					new Button({
 						text: `ARCADE`,
+						locked: true,
 						size: new Vector(flexSize.x, 11),
 						onClick: () => this.playArcade(),
 					}),
@@ -1663,8 +1688,10 @@ class Menu extends GameObject {
 		this.destroy()
 	}
 	playArcade() {
-		Game.root.addChild(new Arcade())
-		this.destroy()
+		if (false) {
+			Game.root.addChild(new Arcade())
+			this.destroy()
+		}
 	}
 }
 
