@@ -702,6 +702,7 @@ class ResultsScreen extends GameObject {
 			new GameText({
 				text: () => `SCORE: ${this.get(`score`)}`,
 				pos: new Vector(4, 32 + 8 + 4),
+				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 1600, duration: 200 })
 				},
@@ -710,6 +711,7 @@ class ResultsScreen extends GameObject {
 			new GameText({
 				text: `BEST: 404`,
 				pos: new Vector(4, 32 + 8 + 4 + 4 + 4),
+				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 1800, duration: 200 })
 				},
@@ -718,6 +720,7 @@ class ResultsScreen extends GameObject {
 			new Button({
 				text: `RETRY`,
 				align: `center`,
+				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 2000, duration: 200 })
 				},
@@ -728,6 +731,7 @@ class ResultsScreen extends GameObject {
 			new Button({
 				text: `MENU`,
 				align: `center`,
+				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { delay: 2000, duration: 200 })
 				},
@@ -1216,6 +1220,7 @@ class GameBoard extends GameObject {
 				const newCoord = new Vector(x, index)
 				const childIndex = this.getIndexFromCoord(newCoord)
 				if (index < additions.length) {
+					tile.opacity = 0
 					this.addChild(tile, childIndex)
 					Animate.fadeIn(tile, {
 						duration: 200 + 100 * deletions.length,
