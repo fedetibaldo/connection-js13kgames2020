@@ -71,6 +71,12 @@ CONTENT += `| Compressed Build | ${kb2} kb | ${bytes2} | ${
 	bytes2 < bytes1 ? `-` : `+`
 	}${Math.round((100 * (bytes1 - bytes2)) / bytes1)}% |\n`
 
+execSync(`advzip -z -4 -i 1000 ${COMPRESSED_BUILD_FILE}`)
+const [kb3, bytes3] = getFileSize(COMPRESSED_BUILD_FOLDER, COMPRESSED_BUILD_FILE_NAME)
+CONTENT += `| Compressed Build (advzip) | ${kb3} kb | ${bytes3} | ${
+	bytes3 < bytes2 ? `-` : `+`
+	}${Math.round((100 * (bytes2 - bytes3)) / bytes2)}% |\n`
+
 // update the log
 fs.open(REPORT_PATH, `w`, (err, fd) => {
 	fs.write(fd, CONTENT, null, (err) => {
