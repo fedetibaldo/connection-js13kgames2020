@@ -1413,7 +1413,7 @@ class GameBoard extends GameObject {
 					return
 				}
 			}
-			zzfx(1,0,100,.02,.05,.02,0,0,0,0,100,.05,0,0,0,0,0,1,0,0);
+			zzfx(1,0,100,.02,.05,.02,0,0,0,0,100,.05,0,0,0,0,0,1,0);
 			this.tilesPlayed.push(coord)
 			this.comboPlayed.push(value)
 			tile.accentColor = new Color(255, 255)
@@ -1445,7 +1445,7 @@ class GameBoard extends GameObject {
 				Animate.shake(tile, { duration: 200 })
 			})
 			// zzfx(...[,0,202,.03,.04,.01,2,,,,,,,,1.9,,,,.01]); // Random 50
-			zzfx(1,0,300,.03,.04,.01,1,0,0,0,0,0,0,0,2.5,0,0,0,.01,0); // Random 50
+			zzfx(1,0,300,.03,.04,.01,1,0,0,0,0,0,0,0,2.5,0,0,0,.01); // Random 50
 		}
 		this.comboPlayed = []
 		this.tilesPlayed = []
@@ -1557,7 +1557,7 @@ class Level extends GameObject {
 			// /* this.turn % 4 == 0 && */ zzfx(...[,0,200,.03,.05,.09,,,5,10,200,.12,,,,,.13,,.05]); // Select - Mutation 9
 			// this.turn % 4 == 1 && zzfx(...[,0,800,.02,.05,.36,1,,,,200,.12,.12,,,,.12,,.05]); // Select - Mutation 9
 			// this.turn % 4 == 2 && zzfx(...[,0,800,.01,.025,.18,1,,,,200,.06,.06,,,,.06,,.025]); // Select - Mutation 9
-			/* this.turn % 4 == 3 && */ zzfx(1,0,800,.01,.025,.18,0,0,0,0,200,.06,0,0,0,0,0,2,.025,0); // Select - Mutation 9
+			/* this.turn % 4 == 3 && */ zzfx(1,0,800,.01,.025,.18,0,0,0,0,200,.06,0,0,0,0,0,2,.025); // Select - Mutation 9
 			this.getChild(`score`).increment()
 		}
 		this.turn++
@@ -1579,7 +1579,7 @@ class Level extends GameObject {
 			this.getChild(`countdown`).reduceBy(2000)
 			Animate.shake(this.getChild(`combination`), { duration: 200 })
 			Animate.shake(this.getChild(`board`), { duration: 200 })
-			zzfx(1,0,202,.03,.04,.01,2,0,0,0,0,0,0,0,1.9,0,0,0,.01,0); // Random 50
+			zzfx(1,0,202,.03,.04,.01,2,0,0,0,0,0,0,0,1.9,0,0,0,.01); // Random 50
 		} else if (this.combo.length) {
 			this.nextTurn()
 		}
