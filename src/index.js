@@ -304,7 +304,7 @@ class GameText extends GameObject {
 
 		text.split(`\n`).forEach(line => {
 
-			line.split(``).forEach(char => {
+			line.trim().split(``).forEach(char => {
 				const width = this.font.getWidth(char)
 				const offset = this.font.getOffset(char)
 
@@ -638,6 +638,16 @@ class Animate {
 		})
 		return animation
 	}
+	static zoomOut(gameObject, { duration, delay }) {
+		const animation = new GameAnimation({ duration, delay })
+		const { pos, size } = gameObject
+		gameObject.scale = 1
+		animation.on(`progress`, progress => {
+			gameObject.pos = pos.add(size.mul(progress).mul(1 / 2))
+			gameObject.scale = 1 - progress
+		})
+		return animation
+	}
 	static slide(gameObject, { duration, delay, to }) {
 		const animation = new GameAnimation({ duration, delay })
 		let { pos } = gameObject
@@ -924,24 +934,80 @@ class Tile extends Area {
 	}
 }
 
+class Modal extends GameObject {
+	constructor({
+		text = ``,
+		size = Game.viewRes,
+		...options
+	}) {
+		super({ text, size, ...options })
+	}
+	onMount() {
+		Animate.zoomIn(this, { duration: 200 })
+	}
+	createChildren() {
+		const padding = new Vector(6, 6)
+		const flexSize = this.size.diff(padding.mul(2))
+		return [
+			new Flexbox({
+				pos: padding,
+				size: flexSize,
+				direction: `column`,
+				align: `end`,
+				justify: `start`,
+				spaceBetween: 4,
+				children: [
+					new Button({
+						text: `X`,
+						fillStyle: Color.grey,//new Color(),
+						strokeStyle: Color.lightGrey,
+						padding: (11 - 2 - 3) / 2,
+						size: new Vector(11, 11),
+						onClick: () => this.close(),
+					}),
+					new GameText({
+						size: flexSize,
+						text: this.text,
+					}),
+				],
+			}),
+		]
+	}
+	close() {
+		Animate
+			.zoomOut(this, { duration: 200 })
+			.on(`end`, () => this.destroy())
+	}
+	render(ctx) {
+		ctx.strokeStyle = Color.lightGrey.toString()
+		ctx.fillStyle = Color.darkGrey.toString()
+		ctx.fillRect(0, 0, this.size.x, this.size.y)
+		ctx.strokeRect(0.5, 0.5, this.size.x - 1, this.size.y - 1)
+		super.render(ctx)
+	}
+}
+
 class Button extends Area {
 	constructor({
 		text = ``,
 		locked = false,
+		padding = 3,
 		size = new Vector(),
 		align = `left`,
+		strokeStyle = Color.lightGrey,
+		fillStyle = Color.darkGrey,
 		...options
 	}) {
 		super({
 			text, size, align,
 			locked,
-			padding: 3,
-			border: 1,
+			padding, border: 1,
+			strokeStyle, fillStyle,
 			...options
 		})
 		if (this.locked) {
 			this.opacity = 0.5
-			this.onClick = () => Animate.shake(this, { duration: 200 })
+			this.on(`click`, () => Animate.shake(this, { duration: 200 }))
 		}
 	}
 	createChildren() {
@@ -962,8 +1028,8 @@ class Button extends Area {
 		return children
 	}
 	render(ctx) {
-		ctx.strokeStyle = Color.lightGrey.toString()
-		ctx.fillStyle = Color.darkGrey.toString()
+		ctx.strokeStyle = this.strokeStyle.toString()
+		ctx.fillStyle = this.fillStyle.toString()
 
 		if (!this.isPressed || this.locked) {
 			ctx.fillRect(0, 0, this.size.x, this.size.y)
@@ -1347,7 +1413,7 @@ class GameBoard extends GameObject {
 					return
 				}
 			}
-			zzfx(...[, 0, 100, .02, .05, .02, , , , , 100, .05]);
+			zzfx(1,0,100,.02,.05,.02,0,0,0,0,100,.05,0,0,0,0,0,1,0,0);
 			this.tilesPlayed.push(coord)
 			this.comboPlayed.push(value)
 			tile.accentColor = new Color(255, 255)
@@ -1379,7 +1445,7 @@ class GameBoard extends GameObject {
 				Animate.shake(tile, { duration: 200 })
 			})
 			// zzfx(...[,0,202,.03,.04,.01,2,,,,,,,,1.9,,,,.01]); // Random 50
-			zzfx(...[, 0, 300, .03, .04, .01, 1, , , , , , , , 2.5, , , , .01]); // Random 50
+			zzfx(1,0,300,.03,.04,.01,1,0,0,0,0,0,0,0,2.5,0,0,0,.01,0); // Random 50
 		}
 		this.comboPlayed = []
 		this.tilesPlayed = []
@@ -1491,7 +1557,7 @@ class Level extends GameObject {
 			// /* this.turn % 4 == 0 && */ zzfx(...[,0,200,.03,.05,.09,,,5,10,200,.12,,,,,.13,,.05]); // Select - Mutation 9
 			// this.turn % 4 == 1 && zzfx(...[,0,800,.02,.05,.36,1,,,,200,.12,.12,,,,.12,,.05]); // Select - Mutation 9
 			// this.turn % 4 == 2 && zzfx(...[,0,800,.01,.025,.18,1,,,,200,.06,.06,,,,.06,,.025]); // Select - Mutation 9
-			/* this.turn % 4 == 3 && */ zzfx(...[, 0, 800, .01, .025, .18, , , , , 200, .06, , , , , , 2, .025]); // Select - Mutation 9
+			/* this.turn % 4 == 3 && */ zzfx(1,0,800,.01,.025,.18,0,0,0,0,200,.06,0,0,0,0,0,2,.025,0); // Select - Mutation 9
 			this.getChild(`score`).increment()
 		}
 		this.turn++
@@ -1513,7 +1579,7 @@ class Level extends GameObject {
 			this.getChild(`countdown`).reduceBy(2000)
 			Animate.shake(this.getChild(`combination`), { duration: 200 })
 			Animate.shake(this.getChild(`board`), { duration: 200 })
-			zzfx(...[, 0, 202, .03, .04, .01, 2, , , , , , , , 1.9, , , , .01]); // Random 50
+			zzfx(1,0,202,.03,.04,.01,2,0,0,0,0,0,0,0,1.9,0,0,0,.01,0); // Random 50
 		} else if (this.combo.length) {
 			this.nextTurn()
 		}
@@ -1579,6 +1645,11 @@ class LevelsScreen extends GameObject {
 					name: `GET SQUARE`,
 					comboLength: 4,
 					locked: true,
+					unlockCondition: `
+						REACH A SCORE\n
+						OF 25 ON '3 IN A\n
+						ROW' TO UNLOCK
+					`,
 					board: `55 55 55`,
 					time: 60000,
 				},
@@ -1586,6 +1657,12 @@ class LevelsScreen extends GameObject {
 					name: `HIGH FIVE`,
 					comboLength: 5,
 					locked: true,
+					unlockCondition: `
+						REACH A SCORE\n
+						OF 20 ON 'GET\n
+						SQUARE' TO\n
+						UNLOCK
+					`,
 					board: `f1 78 1a`,
 					time: 60000,
 				},
@@ -1593,6 +1670,11 @@ class LevelsScreen extends GameObject {
 					name: `SIX PACK`,
 					comboLength: 6,
 					locked: true,
+					unlockCondition: `
+						REACH A SCORE\n
+						OF 30 IN ARCADE\n
+						TO UNLOCK
+					`,
 					board: `eb 69 28`,
 					time: 60000,
 				},
@@ -1642,6 +1724,10 @@ class LevelsScreen extends GameObject {
 				...level
 			}))
 			this.destroy()
+		} else {
+			Game.root.addChild(new Modal({
+				text: level.unlockCondition,
+			}))
 		}
 	}
 }
@@ -1696,6 +1782,14 @@ class Menu extends GameObject {
 		if (false) {
 			Game.root.addChild(new Arcade())
 			this.destroy()
+		} else {
+			Game.root.addChild(new Modal({
+				text: `
+					REACH A SCORE\n
+					OF 15 ON 'HIGH\n
+					FIVE' TO UNLOCK
+				`,
+			}))
 		}
 	}
 }
