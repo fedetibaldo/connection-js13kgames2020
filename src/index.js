@@ -112,6 +112,7 @@ class GameObject extends Observable {
 		pos = new Vector(),
 		opacity = 1,
 		scale = 1,
+		freezed = false,
 		children = [],
 		...unknownOptions
 	} = {}) {
@@ -120,6 +121,7 @@ class GameObject extends Observable {
 		this.pos = pos
 		this.opacity = opacity
 		this.scale = scale
+		this.freezed = freezed
 		this.children = []
 
 		for (let key in unknownOptions) {
@@ -178,6 +180,13 @@ class GameObject extends Observable {
 			child.render(ctx)
 			ctx.restore()
 		})
+	}
+	isFreezed() {
+		const freezed = this.freezed
+		if (this.parent && !freezed) {
+			return this.parent.isFreezed()
+		}
+		return freezed
 	}
 	getGlobalOpacity() {
 		if (this.parent) {
@@ -869,7 +878,7 @@ class Area extends GameObject {
 		this.listeners = []
 	}
 	onMouseEvent(name, event) {
-		if (this.isPointWithinObject(event.pos)) {
+		if (!this.isFreezed() && this.isPointWithinObject(event.pos)) {
 			if (!this.isInside) {
 				this.trigger(`mouseenter`, event)
 				this.isInside = true
@@ -976,7 +985,10 @@ class Modal extends GameObject {
 	close() {
 		Animate
 			.zoomOut(this, { duration: 200 })
-			.on(`end`, () => this.destroy())
+			.on(`end`, () => {
+				this.trigger(`close`)
+				this.destroy()
+			})
 	}
 	render(ctx) {
 		ctx.strokeStyle = Color.lightGrey.toString()
@@ -1725,9 +1737,12 @@ class LevelsScreen extends GameObject {
 			}))
 			this.destroy()
 		} else {
-			Game.root.addChild(new Modal({
+			this.freezed = true
+			const modal = new Modal({
 				text: level.unlockCondition,
-			}))
+			})
+			Game.root.addChild(modal)
+			modal.on(`close`, () => this.freezed = false)
 		}
 	}
 }
