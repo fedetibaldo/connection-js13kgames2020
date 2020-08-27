@@ -288,12 +288,13 @@ class GameText extends GameObject {
 		text = ``,
 		font = gameFont,
 		fontSize = 1, // em
+		lineHeight = 1, // em
 		size = new Vector(),
 		align = `left`,
 		color = Color.white,
 		...options
 	}) {
-		super({ text, font, fontSize, size, align, color, ...options })
+		super({ text, font, fontSize, lineHeight, size, align, color, ...options })
 	}
 	render(ctx) {
 		let startPos = new Vector()
@@ -340,7 +341,7 @@ class GameText extends GameObject {
 			})
 
 			fromLeft = 0
-			fromTop += Math.round(actualHeight * 3 / 2)
+			fromTop += Math.round(actualHeight * this.lineHeight)
 		})
 	}
 	measure() {
@@ -964,7 +965,7 @@ class Modal extends GameObject {
 				direction: `column`,
 				align: `end`,
 				justify: `start`,
-				spaceBetween: 4,
+				spaceBetween: 6,
 				children: [
 					new Button({
 						text: `X`,
@@ -977,6 +978,7 @@ class Modal extends GameObject {
 					new GameText({
 						size: flexSize,
 						text: this.text,
+						lineHeight: 2,
 					}),
 				],
 			}),
@@ -1657,11 +1659,10 @@ class LevelsScreen extends GameObject {
 					name: `GET SQUARE`,
 					comboLength: 4,
 					locked: true,
-					unlockCondition: `
-						REACH A SCORE\n
-						OF 25 ON '3 IN A\n
-						ROW' TO UNLOCK
-					`,
+					unlockCondition: `SCORE MORE
+						THAN 25 POINTS
+						IN '3 IN A ROW'
+						TO UNLOCK`,
 					board: `55 55 55`,
 					time: 60000,
 				},
@@ -1669,12 +1670,10 @@ class LevelsScreen extends GameObject {
 					name: `HIGH FIVE`,
 					comboLength: 5,
 					locked: true,
-					unlockCondition: `
-						REACH A SCORE\n
-						OF 20 ON 'GET\n
-						SQUARE' TO\n
-						UNLOCK
-					`,
+					unlockCondition: `SCORE MORE
+						THAN 20 POINTS
+						IN 'GET SQUARE'
+						TO UNLOCK`,
 					board: `f1 78 1a`,
 					time: 60000,
 				},
@@ -1682,11 +1681,10 @@ class LevelsScreen extends GameObject {
 					name: `SIX PACK`,
 					comboLength: 6,
 					locked: true,
-					unlockCondition: `
-						REACH A SCORE\n
-						OF 30 IN ARCADE\n
-						TO UNLOCK
-					`,
+					unlockCondition: `SCORE MORE
+						THAN 30 POINTS
+						IN ARCADE TO
+						UNLOCK`,
 					board: `eb 69 28`,
 					time: 60000,
 				},
@@ -1799,11 +1797,10 @@ class Menu extends GameObject {
 			this.destroy()
 		} else {
 			Game.root.addChild(new Modal({
-				text: `
-					REACH A SCORE\n
-					OF 15 ON 'HIGH\n
-					FIVE' TO UNLOCK
-				`,
+				text: `SCORE MORE
+					THAN 15 POINTS
+					IN 'HIGH FIVE'
+					TO UNLOCK`,
 			}))
 		}
 	}
