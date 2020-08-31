@@ -40,6 +40,9 @@ class Vector {
 	floor() {
 		return new Vector(Math.floor(this.x), Math.floor(this.y))
 	}
+	clone() {
+		return new Vector(this.x, this.y)
+	}
 }
 
 class Color {
@@ -73,6 +76,7 @@ Color.white = new Color(255, 255, 255)
 Color.darkGrey = new Color(33, 33, 33)
 Color.grey = new Color(45, 45, 45)
 Color.lightGrey = new Color(92, 92, 92)
+Color.yellow = new Color(255, 255)
 
 class Observable {
 	constructor() {
@@ -128,7 +132,7 @@ class GameObject extends Observable {
 			this[key] = unknownOptions[key]
 		}
 
-		this.addChildren(children)
+		this.addChildren(children || [])
 		this.addChildren(this.createChildren())
 	}
 	destroy() {
@@ -283,24 +287,84 @@ const Game = new GameSingleton({
 	viewRes: new Vector(64, 96)
 })
 
+class Trophy {
+	constructor(name, message, condition) {
+		this.name = name
+		this.message = message
+		this.unlocked = this.getMessage() != null
+		this.condition = condition
+	}
+	getFullPath() {
+		return `OS13kTrophy,🟣,Connection,${this.name}`
+	}
+	getMessage() {
+		return window.localStorage.getItem(this.getFullPath())
+	}
+	setMessage(newMessage) {
+		window.localStorage.setItem(this.getFullPath(), newMessage)
+	}
+}
+
+class Record extends Trophy {
+	constructor(levelName) {
+		super(levelName, ``, () => true)
+		this.message = this.getBest()
+		this.unlocked = true
+	}
+	getFullPath() {
+		return `OS13kTrophy,🟣,Connection,HIGH SCORE: ${this.name}`
+	}
+	getBest() {
+		return parseInt(this.getMessage()) || 0
+	}
+	setBest(newBest) {
+		this.setMessage(parseInt(newBest))
+	}
+}
+
+class TrophyCase {
+	static getTrophy(name) {
+		return this.trophies.find(trophy => trophy.name == name)
+	}
+	static updateTrophyStatus() {
+		this.trophies.forEach(trophy => {
+			if (!trophy.unlocked && trophy.condition()) {
+				trophy.unlocked = true
+			}
+		})
+	}
+}
+TrophyCase.trophies = [
+	new Record(`3 IN A ROW`),
+	new Record(`GET SQUARE`),
+	new Record(`HIGH FIVE`),
+	new Record(`SIX PACK`),
+	new Record(`ARCADE`),
+	new Trophy(`BEAT THE CREATOR`, `SCORE MORE THAN 25 POINTS IN 'GET SQUARE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 25),
+	new Trophy(`WAIT, THERE IS MORE`, `SEE A PATTERN WITH MORE THAN 6 SYMBOLS`, () => TrophyCase.getTrophy(`ARCADE`).getBest() >= 40),
+]
+
 class GameText extends GameObject {
 	constructor({
 		text = ``,
 		font = gameFont,
 		fontSize = 1, // em
 		lineHeight = 1, // em
-		size = new Vector(),
+		size = null,
 		align = `left`,
 		color = Color.white,
 		...options
 	}) {
 		super({ text, font, fontSize, lineHeight, size, align, color, ...options })
+		if (!this.size) {
+			this.size = this.measure()
+		}
 	}
 	render(ctx) {
 		let startPos = new Vector()
 		if (this.get(`align`) == `center`) {
 			startPos = this.size.mul(1 / 2).diff(
-				new Vector(this.measure() / 2, 0)
+				new Vector(this.measure().x / 2, 0)
 			)
 		}
 
@@ -345,9 +409,14 @@ class GameText extends GameObject {
 		})
 	}
 	measure() {
-		return this.get(`text`).split(``).reduce((length, char) => {
-			return length + this.font.getWidth(char) * this.fontSize
-		}, 0)
+		const lines = this.get(`text`).split(`\n`)
+		const x = Math.max(
+			...lines.map(line => line.split(``).reduce((length, char) => {
+				return length + this.font.getWidth(char) * this.fontSize
+			}, 0))
+		)
+		const y = lines.length * this.font.getHeight() * this.lineHeight
+		return new Vector(x, y)
 	}
 }
 
@@ -552,14 +621,17 @@ class Interval extends Observable {
 class GameAnimation extends Observable {
 	constructor({ duration, delay = 0 }) {
 		super()
-		const delayTimer = new Timer(delay)
-		delayTimer.on(`completed`, () => {
-			this.trigger(`start`)
-			const animationTimer = new Timer(duration)
-			animationTimer.on(`tick`, (progress) => this.trigger(`progress`, progress))
-			animationTimer.on(`completed`, () => {
-				this.trigger(`end`)
-				this.destroy()
+		this.promise = new Promise((resolve) => {
+			const delayTimer = new Timer(delay)
+			delayTimer.on(`completed`, () => {
+				this.trigger(`start`)
+				const animationTimer = new Timer(duration)
+				animationTimer.on(`tick`, (progress) => this.trigger(`progress`, progress))
+				animationTimer.on(`completed`, () => {
+					this.trigger(`end`)
+					resolve()
+					this.destroy()
+				})
 			})
 		})
 	}
@@ -638,25 +710,28 @@ class Animate {
 		})
 		return animation
 	}
-	static zoomIn(gameObject, { duration, delay }) {
+	static zoomTo(gameObject, { duration, delay, to }) {
 		const animation = new GameAnimation({ duration, delay })
-		const { pos, size } = gameObject
-		gameObject.scale = 0
+		const { pos, size, scale: from } = gameObject
+		const ogPos = pos.add(size.mul(from).diff(size).mul(1/2))
+		console.log(ogPos)
 		animation.on(`progress`, progress => {
-			gameObject.pos = pos.add(size.mul(1 - progress).mul(1 / 2))
-			gameObject.scale = progress
+			const scale = from + (to - from) * progress
+			// gameObject.pos = pos.add(pos.diff(size.mul(scale).mul(1/2)))
+			gameObject.pos = ogPos.diff(
+				size.mul(scale).diff(size).mul(1/2)
+			)
+			gameObject.scale = scale
 		})
 		return animation
 	}
-	static zoomOut(gameObject, { duration, delay }) {
-		const animation = new GameAnimation({ duration, delay })
-		const { pos, size } = gameObject
+	static zoomIn(gameObject, options) {
+		gameObject.scale = 0
+		return Animate.zoomTo(gameObject, { ...options, to: 1 })
+	}
+	static zoomOut(gameObject, options) {
 		gameObject.scale = 1
-		animation.on(`progress`, progress => {
-			gameObject.pos = pos.add(size.mul(progress).mul(1 / 2))
-			gameObject.scale = 1 - progress
-		})
-		return animation
+		return Animate.zoomTo(gameObject, { ...options, to: 0 })
 	}
 	static slide(gameObject, { duration, delay, to }) {
 		const animation = new GameAnimation({ duration, delay })
@@ -674,6 +749,14 @@ class Animate {
 		animation.on(`progress`, progress => {
 			gameObject.opacity = 1 - progress
 			gameObject.pos = pos.add(to.diff(pos).mul(progress))
+		})
+		return animation
+	}
+	static counter(gameObject, { duration, delay, to }) {
+		const animation = new GameAnimation({ duration, delay })
+		gameObject.text = `0`
+		animation.on(`progress`, progress => {
+			gameObject.text = `${Math.round(to * progress)}`
 		})
 		return animation
 	}
@@ -704,57 +787,116 @@ class ResultsScreen extends GameObject {
 		...options
 	}) {
 		super({ level, score, ...options })
+		this.trophy = TrophyCase.getTrophy(this.level.name)
+		this.previousBest = this.trophy.getBest()
+		this.on(`mount`, () => this.updateTrophy())
+		this.on(`mount`, () => this.entryAnimation())
+	}
+	updateTrophy() {
+		if (this.previousBest < this.score) {
+			this.trophy.setBest(this.score)
+			TrophyCase.updateTrophyStatus()
+		}
+	}
+	async entryAnimation() {
+		this.freezed = true
+		const title = this.getChild(`title`)
+		await Animate.blink(title, { duration: 800 }).promise
+		await Animate.slide(title, { duration: 400, to: new Vector(4, 32) }).promise
+		const scoreLabel = this.getChild(`scoreLabel`)
+		const score = this.getChild(`score`)
+		const scoreAnimation = Animate.counter(score, { duration: 800, to: this.score })
+		await Promise.all([
+			Animate.fadeIn(scoreLabel, { duration: 400 }).promise,
+			Animate.fadeIn(score, { duration: 400 }).promise,
+		])
+		const bestLabel = this.getChild(`bestLabel`)
+		const best = this.getChild(`best`)
+		await Promise.all([
+			Animate.fadeIn(bestLabel, { duration: 400 }).promise,
+			Animate.fadeIn(best, { duration: 400 }).promise,
+		])
+		await scoreAnimation.promise
+		if (this.previousBest < this.score) {
+			const newBest = new GameText({
+				...best,
+				size: null,
+				pos: best.pos.clone(),
+				scale: 20,
+				opacity: 0,
+				text: `${this.score} NEW`,
+				color: Color.yellow,
+			})
+			newBest.pos = newBest.pos.diff(
+				newBest.size.mul(newBest.scale).diff(newBest.size).mul(1/2)
+			)
+			this.addChild(newBest)
+			await Promise.all([
+				Animate.explode(best, { duration: 400 }).promise,
+				Animate.zoomTo(newBest, { duration: 400, to: 1 }).promise,
+				Animate.fadeIn(newBest, { duration: 400 }).promise,
+			])
+		}
+		const retry = this.getChild(`retry`)
+		const menu = this.getChild(`menu`)
+		await Promise.all([
+			Animate.fadeIn(retry, { duration: 400 }).promise,
+			Animate.fadeIn(menu, { duration: 400 }).promise,
+		])
+		this.freezed = false
 	}
 	createChildren() {
+		const scoreLabel = new GameText({
+			id: `scoreLabel`,
+			text: `SCORE: `,
+			pos: new Vector(4, 32 + 8 + 4),
+			opacity: 0,
+		})
+		const score = new GameText({
+			id: `score`,
+			text: `0`,
+			pos: new Vector(4 + scoreLabel.measure().x, 32 + 8 + 4),
+			opacity: 0,
+		})
+		const bestLabel = new GameText({
+			id: `bestLabel`,
+			text: `BEST: `,
+			pos: new Vector(4, 32 + 8 + 4 + 4 + 4),
+			opacity: 0,
+		})
+		const best = new GameText({
+			id: `best`,
+			text: `${TrophyCase.getTrophy(this.level.name).getBest()}`,
+			pos: new Vector(4 + bestLabel.measure().x, 32 + 8 + 4 + 4 + 4),
+			opacity: 0,
+		})
 		return [
 			new GameText({
+				id: `title`,
 				text: `TIME'S UP`,
 				fontSize: 2,
 				opacity: 0,
-				onMount: function () {
-					Animate.blink(this, { duration: 800 })
-					Animate.slide(this, { delay: 1200, duration: 400, to: new Vector(4, 32) })
-				},
 				pos: new Vector(4, Game.viewRes.y / 2),
-				size: new Vector(Game.viewRes.x - 8, 0),
 				align: `center`,
 			}),
-			new GameText({
-				text: () => `SCORE: ${this.get(`score`)}`,
-				pos: new Vector(4, 32 + 8 + 4),
-				opacity: 0,
-				onMount: function () {
-					Animate.fadeIn(this, { delay: 1600, duration: 200 })
-				},
-				size: new Vector(Game.viewRes.x - 8, 0),
-			}),
-			new GameText({
-				text: `BEST: 404`,
-				pos: new Vector(4, 32 + 8 + 4 + 4 + 4),
-				opacity: 0,
-				onMount: function () {
-					Animate.fadeIn(this, { delay: 1800, duration: 200 })
-				},
-				size: new Vector(Game.viewRes.x - 8, 0),
-			}),
+			scoreLabel,
+			score,
+			bestLabel,
+			best,
 			new Button({
+				id: `retry`,
 				text: `RETRY`,
 				align: `center`,
 				opacity: 0,
-				onMount: function () {
-					Animate.fadeIn(this, { delay: 2000, duration: 200 })
-				},
 				onClick: () => this.retry(),
 				size: new Vector(Game.viewRes.x / 2 - 6, 11),
 				pos: new Vector(4, 32 + 8 + 4 + 4 + 4 + 4 + 4),
 			}),
 			new Button({
+				id: `menu`,
 				text: `MENU`,
 				align: `center`,
 				opacity: 0,
-				onMount: function () {
-					Animate.fadeIn(this, { delay: 2000, duration: 200 })
-				},
 				onClick: () => this.goToMenu(),
 				size: new Vector(Game.viewRes.x / 2 - 6, 11),
 				pos: new Vector(Game.viewRes.x / 2 + 2, 32 + 8 + 4 + 4 + 4 + 4 + 4),
@@ -947,10 +1089,11 @@ class Tile extends Area {
 class Modal extends GameObject {
 	constructor({
 		text = ``,
+		pos = Game.viewRes.mul(1/2),
 		size = Game.viewRes,
 		...options
 	}) {
-		super({ text, size, ...options })
+		super({ text, size, pos, ...options })
 	}
 	onMount() {
 		Animate.zoomIn(this, { duration: 200 })
@@ -1103,7 +1246,7 @@ class Combination extends GameObject {
 		this.swap()
 	}
 	highlight() {
-		this.children.forEach(child => child.accentColor = new Color(255, 255))
+		this.children.forEach(child => child.accentColor = Color.yellow)
 	}
 	swap() {
 		// Animate old children out
@@ -1430,8 +1573,8 @@ class GameBoard extends GameObject {
 			zzfx(1,0,100,.02,.05,.02,0,0,0,0,100,.05,0,0,0,0,0,1,0);
 			this.tilesPlayed.push(coord)
 			this.comboPlayed.push(value)
-			tile.accentColor = new Color(255, 255)
-			tile.children[0].accentColor = new Color(255, 255)
+			tile.accentColor = Color.yellow
+			tile.children[0].accentColor = Color.yellow
 		}
 	}
 	generateValue() {
@@ -1473,7 +1616,7 @@ class GameBoard extends GameObject {
 		}
 		const drawLine = (from, to) => {
 			ctx.beginPath()
-			ctx.strokeStyle = (new Color(255, 255)).toString()
+			ctx.strokeStyle = (Color.yellow).toString()
 			ctx.lineWidth = 3
 			ctx.moveTo(from.x, from.y)
 			ctx.lineTo(to.x, to.y)
@@ -1498,11 +1641,12 @@ class GameBoard extends GameObject {
 class Level extends GameObject {
 	constructor({
 		comboLength,
+		name = ``,
 		board = ``,
 		time = 0,
 		...options
 	}) {
-		super({ comboLength, board, time, ...options })
+		super({ name, comboLength, board, time, ...options })
 
 		this.score = 0
 		this.turn = -1
@@ -1617,8 +1761,8 @@ class Score extends GameObject {
 	increment() {
 		const popup = new GameText({
 			text: `+1`,
-			color: new Color(255, 255),
-			pos: new Vector(Math.round((Game.viewRes.x - 8) / 2 + this.labelObject.measure() / 2), 0),
+			color: Color.yellow,
+			pos: new Vector(Math.round((Game.viewRes.x - 8) / 2 + this.labelObject.measure().x / 2), 0),
 		})
 		this.addChild(popup)
 		const liftAnimation = Animate.lift(popup, { duration: 1000 })
@@ -1630,6 +1774,7 @@ class Arcade extends Level {
 	constructor(options = {}) {
 		super({
 			...options,
+			name: `ARCADE`,
 			comboLength: 3,
 			board: `e4 1b b4`,
 			time: 60000,
@@ -1951,6 +2096,7 @@ class OpeningScreen extends GameObject {
 			new GameText({
 				text: `FEDETIBALDO\nPRESENTS`,
 				pos: new Vector(4, Game.viewRes.y - 4 - 4 - 2),
+				lineHeight: 1.5,
 				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { duration: 1000 })
