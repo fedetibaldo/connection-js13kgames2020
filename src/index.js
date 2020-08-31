@@ -802,7 +802,7 @@ class ResultsScreen extends GameObject {
 		this.freezed = true
 		const title = this.getChild(`title`)
 		await Animate.blink(title, { duration: 800 }).promise
-		await Animate.slide(title, { duration: 400, to: new Vector(4, 32) }).promise
+		await Animate.slide(title, { duration: 400, delay: 400, to: new Vector(4, 32) }).promise
 		const scoreLabel = this.getChild(`scoreLabel`)
 		const score = this.getChild(`score`)
 		const scoreAnimation = Animate.counter(score, { duration: 800, to: this.score })
