@@ -1803,7 +1803,7 @@ class LevelsScreen extends GameObject {
 				{
 					name: `GET SQUARE`,
 					comboLength: 4,
-					locked: true,
+					locked: TrophyCase.getTrophy(`3 IN A ROW`).getBest() <= 25,
 					unlockCondition: `SCORE MORE
 						THAN 25 POINTS
 						IN '3 IN A ROW'
@@ -1814,7 +1814,7 @@ class LevelsScreen extends GameObject {
 				{
 					name: `HIGH FIVE`,
 					comboLength: 5,
-					locked: true,
+					locked: TrophyCase.getTrophy(`GET SQUARE`).getBest() <= 20,
 					unlockCondition: `SCORE MORE
 						THAN 20 POINTS
 						IN 'GET SQUARE'
@@ -1825,7 +1825,7 @@ class LevelsScreen extends GameObject {
 				{
 					name: `SIX PACK`,
 					comboLength: 6,
-					locked: true,
+					locked: TrophyCase.getTrophy(`ARCADE`).getBest() <= 30,
 					unlockCondition: `SCORE MORE
 						THAN 30 POINTS
 						IN ARCADE TO
@@ -1914,7 +1914,7 @@ class Menu extends GameObject {
 					}),
 					new Button({
 						text: `ARCADE`,
-						locked: true,
+						locked: TrophyCase.getTrophy(`HIGH FIVE`).getBest() <= 15,
 						size: new Vector(flexSize.x, 11),
 						onClick: () => this.playArcade(),
 					}),
@@ -1937,7 +1937,7 @@ class Menu extends GameObject {
 		this.destroy()
 	}
 	playArcade() {
-		if (false) {
+		if (TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 15) {
 			Game.root.addChild(new Arcade())
 			this.destroy()
 		} else {
