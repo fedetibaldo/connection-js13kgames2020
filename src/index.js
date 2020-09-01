@@ -1798,7 +1798,7 @@ class LevelsScreen extends GameObject {
 					comboLength: 3,
 					locked: false,
 					board: `c6 c6 c6`,
-					time: 6000,
+					time: 60000,
 				},
 				{
 					name: `GET SQUARE`,
