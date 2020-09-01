@@ -1874,7 +1874,7 @@ class LevelsScreen extends GameObject {
 			pos: viewWidth.mul(-1),
 		})
 		Game.root.addChild(nextScreen)
-		const slideDuration = 400
+		const slideDuration = 300
 		await Promise.all([
 			Animate.slide(this, { duration: slideDuration, to: this.pos.add(viewWidth) }).promise,
 			Animate.fadeOut(this, { duration: slideDuration }).promise,
@@ -1957,7 +1957,7 @@ class Menu extends GameObject {
 			pos: viewWidth,
 		})
 		Game.root.addChild(nextScreen)
-		const slideDuration = 400
+		const slideDuration = 300
 		await Promise.all([
 			Animate.slide(this, { duration: slideDuration, to: this.pos.diff(viewWidth) }).promise,
 			Animate.fadeOut(this, { duration: slideDuration }).promise,
