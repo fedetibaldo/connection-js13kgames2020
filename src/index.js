@@ -1920,17 +1920,24 @@ class Menu extends GameObject {
 					}),
 					new Button({
 						text: `TROPHIES`,
+						locked: true,
 						size: new Vector(flexSize.x, 11),
-						onClick: () => this.browseLevels(),
+						onClick: () => this.comingSoon(),
 					}),
 					new Button({
 						text: `TUTORIAL`,
+						locked: true,
 						size: new Vector(flexSize.x, 11),
-						onClick: () => this.browseLevels(),
+						onClick: () => this.comingSoon(),
 					}),
 				],
 			}),
 		]
+	}
+	comingSoon() {
+		Game.root.addChild(new Modal({
+			text: `COMING SOON`,
+		}))
 	}
 	browseLevels() {
 		Game.root.addChild(new LevelsScreen())
