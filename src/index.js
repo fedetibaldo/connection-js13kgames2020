@@ -1868,8 +1868,19 @@ class LevelsScreen extends GameObject {
 			}),
 		]
 	}
-	back() {
-		Game.root.addChild(new Menu({}))
+	async back() {
+		const viewWidth = new Vector(Game.viewRes.x, 0)
+		const nextScreen = new Menu({
+			pos: viewWidth.mul(-1),
+		})
+		Game.root.addChild(nextScreen)
+		const slideDuration = 400
+		await Promise.all([
+			Animate.slide(this, { duration: slideDuration, to: this.pos.add(viewWidth) }).promise,
+			Animate.fadeOut(this, { duration: slideDuration }).promise,
+			Animate.slide(nextScreen, { duration: slideDuration, to: new Vector() }).promise,
+			Animate.fadeIn(nextScreen, { duration: slideDuration }).promise,
+		])
 		this.destroy()
 	}
 	playLevel(index) {
@@ -1906,6 +1917,7 @@ class Menu extends GameObject {
 				children: [
 					new Title({
 						size: new Vector(45, 11 + 4),
+						animate: this.animate,
 					}),
 					new Button({
 						text: `LEVELS`,
@@ -1939,8 +1951,19 @@ class Menu extends GameObject {
 			text: `COMING SOON`,
 		}))
 	}
-	browseLevels() {
-		Game.root.addChild(new LevelsScreen())
+	async browseLevels() {
+		const viewWidth = new Vector(Game.viewRes.x, 0)
+		const nextScreen = new LevelsScreen({
+			pos: viewWidth,
+		})
+		Game.root.addChild(nextScreen)
+		const slideDuration = 400
+		await Promise.all([
+			Animate.slide(this, { duration: slideDuration, to: this.pos.diff(viewWidth) }).promise,
+			Animate.fadeOut(this, { duration: slideDuration }).promise,
+			Animate.slide(nextScreen, { duration: slideDuration, to: new Vector() }).promise,
+			Animate.fadeIn(nextScreen, { duration: slideDuration }).promise,
+		])
 		this.destroy()
 	}
 	playArcade() {
@@ -2013,13 +2036,14 @@ class Flexbox extends GameObject {
 class Title extends GameObject {
 	constructor({
 		size = new Vector(45, 11),
+		animate = false,
 		...options
 	} = {}) {
-		super({ size, ...options })
+		super({ size, animate, ...options })
 	}
 	createChildren() {
-		const duration = 400
-		const delay = 400
+		const duration = this.animate ? 400 : 0
+		const delay = this.animate ? 400 : 0
 		// const expectedGlobalPosition = new Vector(Game.viewRes.x / 2 - this.size.x / 2, 11).floor()
 		// Animate.slide(this, { duration, delay: duration + delay * 2, to: this.pos.diff(this.getGlobalPosition().diff(expectedGlobalPosition)) })
 		const slideAmount = 15
@@ -2195,7 +2219,9 @@ function shuffle(array) {
 	await Promise.all([gameFont.load(), assets.load()])
 
 	// append level
-	Game.root.addChild(new Menu())
+	Game.root.addChild(new Menu({
+		animate: true
+	}))
 
 	// start game
 	Game.play()
