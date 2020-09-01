@@ -802,19 +802,19 @@ class ResultsScreen extends GameObject {
 		this.freezed = true
 		const title = this.getChild(`title`)
 		await Animate.blink(title, { duration: 800 }).promise
-		await Animate.slide(title, { duration: 400, delay: 400, to: new Vector(4, 32) }).promise
+		await Animate.slide(title, { duration: 600, delay: 400, to: new Vector(0, 28) }).promise
 		const scoreLabel = this.getChild(`scoreLabel`)
 		const score = this.getChild(`score`)
-		const scoreAnimation = Animate.counter(score, { duration: 800, to: this.score })
+		const scoreAnimation = Animate.counter(score, { duration: 1200, to: this.score })
 		await Promise.all([
-			Animate.fadeIn(scoreLabel, { duration: 400 }).promise,
-			Animate.fadeIn(score, { duration: 400 }).promise,
+			Animate.fadeIn(scoreLabel, { duration: 600 }).promise,
+			Animate.fadeIn(score, { duration: 600 }).promise,
 		])
 		const bestLabel = this.getChild(`bestLabel`)
 		const best = this.getChild(`best`)
 		await Promise.all([
-			Animate.fadeIn(bestLabel, { duration: 400 }).promise,
-			Animate.fadeIn(best, { duration: 400 }).promise,
+			Animate.fadeIn(bestLabel, { duration: 600 }).promise,
+			Animate.fadeIn(best, { duration: 600 }).promise,
 		])
 		await scoreAnimation.promise
 		if (this.previousBest < this.score) {
@@ -840,8 +840,8 @@ class ResultsScreen extends GameObject {
 		const retry = this.getChild(`retry`)
 		const menu = this.getChild(`menu`)
 		await Promise.all([
-			Animate.fadeIn(retry, { duration: 400 }).promise,
-			Animate.fadeIn(menu, { duration: 400 }).promise,
+			Animate.fadeIn(retry, { duration: 600 }).promise,
+			Animate.fadeIn(menu, { duration: 600 }).promise,
 		])
 		this.freezed = false
 	}
@@ -849,25 +849,25 @@ class ResultsScreen extends GameObject {
 		const scoreLabel = new GameText({
 			id: `scoreLabel`,
 			text: `SCORE: `,
-			pos: new Vector(4, 32 + 8 + 4),
+			pos: new Vector(4, 28 + 8 + 4 + 2),
 			opacity: 0,
 		})
 		const score = new GameText({
 			id: `score`,
 			text: `0`,
-			pos: new Vector(4 + scoreLabel.measure().x, 32 + 8 + 4),
+			pos: new Vector(4 + scoreLabel.measure().x, 28 + 8 + 4 + 2),
 			opacity: 0,
 		})
 		const bestLabel = new GameText({
 			id: `bestLabel`,
 			text: `BEST: `,
-			pos: new Vector(4, 32 + 8 + 4 + 4 + 4),
+			pos: new Vector(4, 28 + 8 + 4 + 2 + 4 + 4),
 			opacity: 0,
 		})
 		const best = new GameText({
 			id: `best`,
 			text: `${TrophyCase.getTrophy(this.level.name).getBest()}`,
-			pos: new Vector(4 + bestLabel.measure().x, 32 + 8 + 4 + 4 + 4),
+			pos: new Vector(4 + bestLabel.measure().x, 28 + 8 + 4 + 2 + 4 + 4),
 			opacity: 0,
 		})
 		return [
@@ -876,7 +876,7 @@ class ResultsScreen extends GameObject {
 				text: `TIME'S UP`,
 				fontSize: 2,
 				opacity: 0,
-				pos: new Vector(4, Game.viewRes.y / 2),
+				pos: new Vector(0, Game.viewRes.y / 2),
 				align: `center`,
 			}),
 			scoreLabel,
@@ -890,7 +890,7 @@ class ResultsScreen extends GameObject {
 				opacity: 0,
 				onClick: () => this.retry(),
 				size: new Vector(Game.viewRes.x / 2 - 6, 11),
-				pos: new Vector(4, 32 + 8 + 4 + 4 + 4 + 4 + 4),
+				pos: new Vector(4, 28 + 8 + 4 + 2 + 4 + 4 + 4 + 4 + 3),
 			}),
 			new Button({
 				id: `menu`,
@@ -899,7 +899,7 @@ class ResultsScreen extends GameObject {
 				opacity: 0,
 				onClick: () => this.goToMenu(),
 				size: new Vector(Game.viewRes.x / 2 - 6, 11),
-				pos: new Vector(Game.viewRes.x / 2 + 2, 32 + 8 + 4 + 4 + 4 + 4 + 4),
+				pos: new Vector(Game.viewRes.x / 2 + 2, 28 + 8 + 4 + 2 + 4 + 4 + 4 + 4 + 3),
 			}),
 		]
 	}
@@ -1798,7 +1798,7 @@ class LevelsScreen extends GameObject {
 					comboLength: 3,
 					locked: false,
 					board: `c6 c6 c6`,
-					time: 60000,
+					time: 6000,
 				},
 				{
 					name: `GET SQUARE`,
