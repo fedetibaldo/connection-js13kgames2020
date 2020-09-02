@@ -714,7 +714,6 @@ class Animate {
 		const animation = new GameAnimation({ duration, delay })
 		const { pos, size, scale: from } = gameObject
 		const ogPos = pos.add(size.mul(from).diff(size).mul(1/2))
-		console.log(ogPos)
 		animation.on(`progress`, progress => {
 			const scale = from + (to - from) * progress
 			// gameObject.pos = pos.add(pos.diff(size.mul(scale).mul(1/2)))
@@ -1591,7 +1590,8 @@ class GameBoard extends GameObject {
 			return
 		}
 		const combo = this.get(`combo`)
-		if (combo.length == this.comboPlayed.length && serializeData(combo) == serializeData(this.comboPlayed)) {
+		const reverseCombo = Array.from(combo).reverse()
+		if (combo.length == this.comboPlayed.length && (serializeData(combo) == serializeData(this.comboPlayed) || serializeData(reverseCombo) == serializeData(this.comboPlayed))) {
 			this.replaceTiles(this.tilesPlayed, range(combo.length).map(() => this.generateValue()))
 			this.trigger(`submit`)
 		} else {
@@ -1726,14 +1726,11 @@ class Level extends GameObject {
 		this.nextTurn()
 	}
 	onCombinationNotFound() {
-		if (this.freezed) {
-			return
-		} else {
-			this.freezed = true
-			const freezeTimer = new Timer(600)
-			freezeTimer.on(`completed`, () => this.freezed = false)
-		}
 		if (this.getChild(`board`).findCombination(this.combo)) {
+			const button = this.getChild(`button`)
+			button.freezed = true
+			const freezeTimer = new Timer(600)
+			freezeTimer.on(`completed`, () => button.freezed = false)
 			this.getChild(`countdown`).reduceBy(2000)
 			Animate.shake(this.getChild(`combination`), { duration: 200 })
 			Animate.shake(this.getChild(`board`), { duration: 200 })
@@ -1803,9 +1800,9 @@ class LevelsScreen extends GameObject {
 				{
 					name: `GET SQUARE`,
 					comboLength: 4,
-					locked: TrophyCase.getTrophy(`3 IN A ROW`).getBest() <= 25,
+					locked: TrophyCase.getTrophy(`3 IN A ROW`).getBest() <= 20,
 					unlockCondition: `SCORE MORE
-						THAN 25 POINTS
+						THAN 20 POINTS
 						IN '3 IN A ROW'
 						TO UNLOCK`,
 					board: `55 55 55`,
@@ -1814,9 +1811,9 @@ class LevelsScreen extends GameObject {
 				{
 					name: `HIGH FIVE`,
 					comboLength: 5,
-					locked: TrophyCase.getTrophy(`GET SQUARE`).getBest() <= 20,
+					locked: TrophyCase.getTrophy(`GET SQUARE`).getBest() <= 15,
 					unlockCondition: `SCORE MORE
-						THAN 20 POINTS
+						THAN 15 POINTS
 						IN 'GET SQUARE'
 						TO UNLOCK`,
 					board: `f1 78 1a`,
@@ -1967,13 +1964,13 @@ class Menu extends GameObject {
 		this.destroy()
 	}
 	playArcade() {
-		if (TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 15) {
+		if (TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 10) {
 			Game.root.addChild(new Arcade())
 			this.destroy()
 		} else {
 			Game.root.addChild(new Modal({
 				text: `SCORE MORE
-					THAN 15 POINTS
+					THAN 10 POINTS
 					IN 'HIGH FIVE'
 					TO UNLOCK`,
 			}))
