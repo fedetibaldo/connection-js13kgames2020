@@ -682,8 +682,10 @@ class Animate {
 	}
 	static fadeIn(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
+		const from = gameObject.opacity
+		const distance = 1 - gameObject.opacity
 		animation.on(`progress`, progress => {
-			gameObject.opacity = progress
+			gameObject.opacity = from + distance * progress
 		})
 		return animation
 	}
@@ -1176,12 +1178,16 @@ class Button extends Area {
 			}),
 		]
 		if (this.locked) {
-			children.push(new Sprite({
-				asset: `lock`,
-				pos: new Vector(this.size.x - 8, 3),
-			}))
+			children.push(this.createLock())
 		}
 		return children
+	}
+	createLock() {
+		return new Sprite({
+			asset: `lock`,
+			size: new Vector(7, 7),
+			pos: new Vector(this.size.x - 8, 3),
+		})
 	}
 	render(ctx) {
 		ctx.strokeStyle = this.strokeStyle.toString()
@@ -1860,6 +1866,15 @@ class LevelsScreen extends GameObject {
 						locked: level.locked,
 						size: new Vector(flexSize.x, 11),
 						onClick: () => this.playLevel(index),
+						onMount: function () {
+							if (!this.locked && TrophyCase.getTrophy(level.name).getBest() == 0) {
+								const lock = this.createLock()
+								this.addChild(lock)
+								this.opacity = .5
+								Animate.explode(lock, { duration: 400, delay: 400 })
+								Animate.fadeIn(this, { duration: 400, delay: 400 })
+							}
+						},
 					})),
 				],
 			}),
