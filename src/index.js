@@ -912,12 +912,24 @@ class ResultsScreen extends GameObject {
 		}
 		this.destroy()
 	}
-	goToMenu() {
-		Game.root.addChild(this.level instanceof Arcade
-			? new Menu()
-			: new LevelsScreen()
-		)
-		Game.root.addChild(new LevelsScreen({}))
+	async goToMenu() {
+		const viewWidth = new Vector(Game.viewRes.x, 0)
+		const config = {
+			pos: viewWidth.mul(-1),
+		}
+
+		const nextScreen = this.level instanceof Arcade
+			? new Menu(config)
+			: new LevelsScreen(config)
+
+		Game.root.addChild(nextScreen)
+		const slideDuration = 300
+		await Promise.all([
+			Animate.slide(this, { duration: slideDuration, to: this.pos.add(viewWidth) }).promise,
+			Animate.fadeOut(this, { duration: slideDuration }).promise,
+			Animate.slide(nextScreen, { duration: slideDuration, to: new Vector() }).promise,
+			Animate.fadeIn(nextScreen, { duration: slideDuration }).promise,
+		])
 		this.destroy()
 	}
 }
@@ -1796,6 +1808,8 @@ class Arcade extends Level {
 	}
 }
 
+window.localStorage.setItem(`unlocked,3 IN A ROW`, true)
+
 class LevelsScreen extends GameObject {
 	constructor(options = {}) {
 		super({
@@ -1871,12 +1885,13 @@ class LevelsScreen extends GameObject {
 						size: new Vector(flexSize.x, 11),
 						onClick: () => this.playLevel(index),
 						onMount: function () {
-							if (!this.locked && TrophyCase.getTrophy(level.name).getBest() == 0) {
+							if (!this.locked && !window.localStorage.getItem(`unlocked,${level.name}`)) {
 								const lock = this.createLock()
 								this.addChild(lock)
 								this.opacity = .5
 								Animate.explode(lock, { duration: 400, delay: 400 })
 								Animate.fadeIn(this, { duration: 400, delay: 400 })
+								window.localStorage.setItem(`unlocked,${level.name}`, true)
 							}
 						},
 					})),
