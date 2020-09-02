@@ -913,6 +913,10 @@ class ResultsScreen extends GameObject {
 		this.destroy()
 	}
 	goToMenu() {
+		Game.root.addChild(this.level instanceof Arcade
+			? new Menu()
+			: new LevelsScreen()
+		)
 		Game.root.addChild(new LevelsScreen({}))
 		this.destroy()
 	}
