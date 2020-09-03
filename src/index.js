@@ -284,7 +284,7 @@ class GameSingleton extends Observable {
 
 const Game = new GameSingleton({
 	canvas: document.getElementById(`game`),
-	viewRes: new Vector(64, 96)
+	viewRes: new Vector(64 * 1.5, 96 * 1.5)
 })
 
 class Trophy {
@@ -341,7 +341,7 @@ TrophyCase.trophies = [
 	new Record(`SIX PACK`),
 	new Record(`ARCADE`),
 	new Trophy(`BEAT THE CREATOR`, `SCORE MORE THAN 25 POINTS IN 'GET SQUARE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 25),
-	new Trophy(`WAIT, THERE IS MORE`, `SEE A PATTERN WITH MORE THAN 6 SYMBOLS`, () => TrophyCase.getTrophy(`ARCADE`).getBest() >= 40),
+	new Trophy(`THERE WAS MORE!?`, `SEE A PATTERN WITH MORE THAN 6 SYMBOLS`, () => TrophyCase.getTrophy(`ARCADE`).getBest() >= 40),
 ]
 
 class GameText extends GameObject {
@@ -510,8 +510,8 @@ class Spritesheet {
 }
 
 const assets = new Spritesheet(`./assets/sprites.png`, {
-	width: 7,
-	height: 7,
+	width: 11,
+	height: 11,
 	assetNames: [`triangle`, `square`, `circle`, `cross`, `lock`],
 })
 
@@ -643,8 +643,8 @@ class Animate {
 		let base = 0
 		animation.on(`start`, () => base = gameObject.pos.y)
 		animation.on(`progress`, progress => {
-			// y = -2 + (4x - sqrt2)^2
-			gameObject.pos.y = base + 2 * (-2 + Math.pow(4 * progress - Math.sqrt(2), 2))
+			// y = -8 + (8x - sqrt8)^2
+			gameObject.pos.y = base + (-8 + Math.pow(8 * progress - Math.sqrt(8), 2))
 			gameObject.opacity = 1 - progress
 		})
 		return animation
@@ -890,7 +890,7 @@ class ResultsScreen extends GameObject {
 				align: `center`,
 				opacity: 0,
 				onClick: () => this.retry(),
-				size: new Vector(Game.viewRes.x / 2 - 6, 11),
+				size: new Vector(Game.viewRes.x / 2 - 6, 17),
 				pos: new Vector(4, 28 + 8 + 4 + 2 + 4 + 4 + 4 + 4 + 3),
 			}),
 			new Button({
@@ -899,7 +899,7 @@ class ResultsScreen extends GameObject {
 				align: `center`,
 				opacity: 0,
 				onClick: () => this.goToMenu(),
-				size: new Vector(Game.viewRes.x / 2 - 6, 11),
+				size: new Vector(Game.viewRes.x / 2 - 6, 17),
 				pos: new Vector(Game.viewRes.x / 2 + 2, 28 + 8 + 4 + 2 + 4 + 4 + 4 + 4 + 3),
 			}),
 		]
@@ -1006,7 +1006,7 @@ class ColoredSprite extends GameObject {
 	toImageData(colorArray) {
 		return new ImageData(Uint8ClampedArray.from(
 			colorArray.reduce((data, color) => [...data, color.r, color.g, color.b, color.a], [])
-		), 7)
+		), this.canvas.width)
 	}
 	render(ctx) {
 		this.ctx.putImageData(this.toImageData(this.colorArray), 0, 0)
@@ -1116,7 +1116,7 @@ class Modal extends GameObject {
 		Animate.zoomIn(this, { duration: 200 })
 	}
 	createChildren() {
-		const padding = new Vector(6, 6)
+		const padding = new Vector(8, 8)
 		const flexSize = this.size.diff(padding.mul(2))
 		return [
 			new Flexbox({
@@ -1125,14 +1125,14 @@ class Modal extends GameObject {
 				direction: `column`,
 				align: `end`,
 				justify: `start`,
-				spaceBetween: 6,
+				spaceBetween: 12,
 				children: [
 					new Button({
 						text: `X`,
 						fillStyle: Color.grey,//new Color(),
 						strokeStyle: Color.lightGrey,
-						padding: (11 - 2 - 3) / 2,
-						size: new Vector(11, 11),
+						padding: (17 - 2 - 6) / 2,
+						size: new Vector(17, 18),
 						onClick: () => this.close(),
 					}),
 					new GameText({
@@ -1165,7 +1165,7 @@ class Button extends Area {
 	constructor({
 		text = ``,
 		locked = false,
-		padding = 3,
+		padding = 4,
 		size = new Vector(),
 		align = `left`,
 		strokeStyle = Color.lightGrey,
@@ -1201,8 +1201,8 @@ class Button extends Area {
 	createLock() {
 		return new Sprite({
 			asset: `lock`,
-			size: new Vector(7, 7),
-			pos: new Vector(this.size.x - 8, 3),
+			size: new Vector(11, 11),
+			pos: new Vector(this.size.x - 12, 5),
 		})
 	}
 	render(ctx) {
@@ -1271,35 +1271,39 @@ class Combination extends GameObject {
 	}
 	swap() {
 		// Animate old children out
-		this.children.forEach((oldChild, index) => {
-			const animation = Animate.jumpOut(oldChild, {
-				duration: 400,
-				delay: 50 * index
-			})
-			// Remove the child once the animation is complete
-			animation.on(`end`, () => this.removeChild(oldChild))
-		})
+		const oldFlex = this.children[0]
+		if (oldFlex) {
+			Promise.all(oldFlex.children.map((oldChild, index) => {
+				return Animate.jumpOut(oldChild, {
+					duration: 400,
+					delay: 50 * index
+				}).promise
+			})).then(() => this.removeChild(oldFlex))
+		}
 		// Generate and add new children
 		const combo = this.get(`combo`)
-		const newRow = this._createChildren(combo)
-		this.addChildren(newRow)
+		const newRow = this.createRow(combo)
+		this.addChild(newRow)
 		// Animate new children in
-		newRow.forEach((newChild, index) => {
+		newRow.children.forEach((newChild, index) => {
 			Animate.jumpIn(newChild, {
 				duration: 200,
-				delay: (this.children.length > 4 ? 300 : 0) + 50 * index
+				delay: (this.children.length * 100) + 50 * index
 			})
 		})
 	}
-	_createChildren(combination) {
-		const spriteW = 7
-		const padding = 2
-		const boxW = spriteW + padding
-		return combination.map((value, index) => new ColoredSprite({
-			asset: value,
-			size: new Vector(7, 7),
-			pos: new Vector(Game.viewRes.x / 2 - Math.floor((boxW * combination.length) / 2) + (boxW * index) + padding / 2, 0),
-		}))
+	createRow(combination) {
+		return new Flexbox ({
+			size: new Vector(this.parent.size.x, 11),
+			direction: `row`,
+			justify: `center`,
+			align: `start`,
+			spaceBetween: 3,
+			children: combination.map((value, index) => new ColoredSprite({
+				asset: value,
+				size: new Vector(11, 11),
+			})),
+		})
 	}
 }
 
@@ -1406,12 +1410,12 @@ class GameBoard extends GameObject {
 	}
 	_createChild(coord, value) {
 		return new Tile({
-			pos: coord.mul(15),
-			size: new Vector(11, 11),
+			pos: coord.mul(21),
+			size: new Vector(17, 17),
 			children: [
 				new ColoredSprite({
-					pos: new Vector(2, 2),
-					size: new Vector(7, 7),
+					pos: new Vector(3, 3),
+					size: new Vector(11, 11),
 					asset: value,
 				})
 			],
@@ -1477,7 +1481,7 @@ class GameBoard extends GameObject {
 				Animate.slide(tile, {
 					duration: 200 + 100 * deletions.length,
 					delay: (3 - (index + 1)) * 50,
-					to: new Vector(x * 15, index * 15)
+					to: new Vector(x * 21, index * 21),
 				})
 			})
 		})
@@ -1639,7 +1643,7 @@ class GameBoard extends GameObject {
 		const drawLine = (from, to) => {
 			ctx.beginPath()
 			ctx.strokeStyle = (Color.yellow).toString()
-			ctx.lineWidth = 3
+			ctx.lineWidth = 5
 			ctx.moveTo(from.x, from.y)
 			ctx.lineTo(to.x, to.y)
 			ctx.stroke()
@@ -1676,39 +1680,53 @@ class Level extends GameObject {
 
 		this.nextTurn()
 	}
+	getChild(id) {
+		return this.children[0].getChild(id)
+	}
 	createChildren() {
+		const padding = new Vector(8, 8)
+		const flexSize = Game.viewRes.diff(padding.mul(2))
 		return [
-			new Score({
-				id: `score`,
-				pos: new Vector(4, 4),
-				score: () => this.score
-			}),
-			new Combination({
-				id: `combination`,
-				combo: () => this.combo,
-				pos: new Vector(0, 13),
-			}),
-			new Countdown({
-				id: `countdown`,
-				pos: new Vector(4, 26),
-				duration: this.time,
-				length: 56,
-				onCompleted: () => this.gameOver(),
-			}),
-			new GameBoard({
-				id: `board`,
-				data: this.board,
-				pos: new Vector(4, 34),
-				combo: () => this.combo,
-				onSubmit: (e) => this.onCombinationSubmit(e),
-			}),
-			new Button({
-				id: `button`,
-				align: `center`,
-				text: `404`,
-				pos: new Vector(4, 81),
-				size: new Vector(Game.viewRes.x - 8, 11),
-				onClick: () => this.onCombinationNotFound(),
+			new Flexbox({
+				pos: padding,
+				size: flexSize,
+				direction: `column`,
+				justify: `start`,
+				align: `start`,
+				spaceBetween: 8,
+				children: [
+					new Score({
+						id: `score`,
+						size: new Vector(flexSize.x, 7),
+						score: () => this.score
+					}),
+					new Combination({
+						id: `combination`,
+						size: new Vector(flexSize.x, 11),
+						combo: () => this.combo,
+					}),
+					new Countdown({
+						id: `countdown`,
+						duration: this.time,
+						size: new Vector(flexSize.x, 1),
+						length: flexSize.x,
+						onCompleted: () => this.gameOver(),
+					}),
+					new GameBoard({
+						id: `board`,
+						data: this.board,
+						size: new Vector(flexSize.x, 59),
+						combo: () => this.combo,
+						onSubmit: (e) => this.onCombinationSubmit(e),
+					}),
+					new Button({
+						id: `button`,
+						align: `center`,
+						text: `404`,
+						size: new Vector(Game.viewRes.x - 16, 17),
+						onClick: () => this.onCombinationNotFound(),
+					}),
+				],
 			}),
 		]
 	}
@@ -1773,7 +1791,7 @@ class Score extends GameObject {
 		this.labelObject = new GameText({
 			text: () => `${this.get(`score`)}`,
 			align: `center`,
-			size: new Vector(Game.viewRes.x - 8, 0),
+			size: new Vector(Game.viewRes.x - 16, 0),
 		})
 		this.addChild(this.labelObject)
 	}
@@ -1781,7 +1799,7 @@ class Score extends GameObject {
 		const popup = new GameText({
 			text: `+1`,
 			color: Color.yellow,
-			pos: new Vector(Math.round((Game.viewRes.x - 8) / 2 + this.labelObject.measure().x / 2), 0),
+			pos: new Vector(Math.round((Game.viewRes.x - 16) / 2 + this.labelObject.measure().x / 2), 0),
 		})
 		this.addChild(popup)
 		const liftAnimation = Animate.lift(popup, { duration: 1000 })
@@ -1803,7 +1821,7 @@ class Arcade extends Level {
 		if (this.turn >= 0) {
 			this.getChild(`countdown`).incrementBy(2000)
 		}
-		this.comboLength = Math.min(3 + Math.floor((this.score + 1) / 10), 7)
+		this.comboLength = Math.min(3 + Math.floor((this.score + 1) / 10), 6)
 		super.nextTurn()
 	}
 }
@@ -1859,7 +1877,7 @@ class LevelsScreen extends GameObject {
 		})
 	}
 	createChildren() {
-		const padding = new Vector(4, 4)
+		const padding = new Vector(8, 12)
 		const flexSize = Game.viewRes.diff(padding.mul(2))
 		return [
 			new Flexbox({
@@ -1868,10 +1886,10 @@ class LevelsScreen extends GameObject {
 				direction: `column`,
 				justify: `start`,
 				align: `start`,
-				spaceBetween: 4,
+				spaceBetween: 6,
 				children: [
 					new Area({
-						size: new Vector(flexSize.x / 2, 4),
+						size: new Vector(flexSize.x / 2, 7 + 12 - 6),
 						onClick: () => this.back(),
 						children: [
 							new GameText({
@@ -1882,7 +1900,7 @@ class LevelsScreen extends GameObject {
 					...this.levels.map((level, index) => new Button({
 						text: level.name,
 						locked: level.locked,
-						size: new Vector(flexSize.x, 11),
+						size: new Vector(flexSize.x, 17),
 						onClick: () => this.playLevel(index),
 						onMount: function () {
 							if (!this.locked && !window.localStorage.getItem(`unlocked,${level.name}`)) {
@@ -1934,8 +1952,8 @@ class LevelsScreen extends GameObject {
 
 class Menu extends GameObject {
 	createChildren() {
-		const offset = new Vector(0, 4)
-		const padding = new Vector(4, 4)
+		const offset = new Vector(0, 8)
+		const padding = new Vector(8, 8)
 		const flexSize = Game.viewRes.diff(padding.mul(2)).diff(offset)
 		return [
 			new Flexbox({
@@ -1944,35 +1962,35 @@ class Menu extends GameObject {
 				align: `center`,
 				justify: `start`,
 				direction: `column`,
-				spaceBetween: 4,
+				spaceBetween: 6,
 				children: [
 					new Title({
-						size: new Vector(45, 11 + 4),
+						size: new Vector(45, 19 + 8),
 						animate: this.animate,
 					}),
 					new Button({
 						text: `LEVELS`,
-						size: new Vector(flexSize.x, 11),
+						size: new Vector(flexSize.x, 17),
 						onClick: () => this.browseLevels(),
 					}),
 					new Button({
 						text: `ARCADE`,
-						locked: TrophyCase.getTrophy(`HIGH FIVE`).getBest() <= 15,
-						size: new Vector(flexSize.x, 11),
+						locked: TrophyCase.getTrophy(`HIGH FIVE`).getBest() <= 10,
+						size: new Vector(flexSize.x, 17),
 						onClick: () => this.playArcade(),
 					}),
 					new Button({
 						text: `TROPHIES`,
 						locked: true,
-						size: new Vector(flexSize.x, 11),
+						size: new Vector(flexSize.x, 17),
 						onClick: () => this.comingSoon(),
 					}),
-					new Button({
-						text: `TUTORIAL`,
-						locked: true,
-						size: new Vector(flexSize.x, 11),
-						onClick: () => this.comingSoon(),
-					}),
+					// new Button({
+					// 	text: `TUTORIAL`,
+					// 	locked: true,
+					// 	size: new Vector(flexSize.x, 17),
+					// 	onClick: () => this.comingSoon(),
+					// }),
 				],
 			}),
 		]
@@ -1982,20 +2000,27 @@ class Menu extends GameObject {
 			text: `COMING SOON`,
 		}))
 	}
-	async browseLevels() {
-		const viewWidth = new Vector(Game.viewRes.x, 0)
-		const nextScreen = new LevelsScreen({
-			pos: viewWidth,
+	async nextScreen(screen, direction = 1) {
+		const viewWidth = Game.viewRes.x
+		const offset = new Vector(viewWidth * direction, 0)
+		const nextScreen = new screen({
+			pos: offset,
 		})
 		Game.root.addChild(nextScreen)
 		const slideDuration = 300
 		await Promise.all([
-			Animate.slide(this, { duration: slideDuration, to: this.pos.diff(viewWidth) }).promise,
+			Animate.slide(this, { duration: slideDuration, to: this.pos.diff(offset) }).promise,
 			Animate.fadeOut(this, { duration: slideDuration }).promise,
 			Animate.slide(nextScreen, { duration: slideDuration, to: new Vector() }).promise,
 			Animate.fadeIn(nextScreen, { duration: slideDuration }).promise,
 		])
 		this.destroy()
+	}
+	browseLevels() {
+		this.nextScreen(LevelsScreen)
+	}
+	browseTrophies() {
+		this.nextScreen(TrophiesScreen)
 	}
 	playArcade() {
 		if (TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 10) {
@@ -2066,7 +2091,7 @@ class Flexbox extends GameObject {
 
 class Title extends GameObject {
 	constructor({
-		size = new Vector(45, 11),
+		size = new Vector(45, 17),
 		animate = false,
 		...options
 	} = {}) {
@@ -2075,28 +2100,28 @@ class Title extends GameObject {
 	createChildren() {
 		const duration = this.animate ? 400 : 0
 		const delay = this.animate ? 400 : 0
-		// const expectedGlobalPosition = new Vector(Game.viewRes.x / 2 - this.size.x / 2, 11).floor()
+		// const expectedGlobalPosition = new Vector(Game.viewRes.x / 2 - this.size.x / 2, 17).floor()
 		// Animate.slide(this, { duration, delay: duration + delay * 2, to: this.pos.diff(this.getGlobalPosition().diff(expectedGlobalPosition)) })
-		const slideAmount = 15
+		const slideAmount = 20
 		const tweenedMovement = function () {
 			Animate.slide(this, { delay, duration, to: this.pos.diff(new Vector(slideAmount)) })
 		}
-		const tilePos = (new Vector(this.size.x / 2 - 11 / 2, 0)).floor()
+		const tilePos = (new Vector(this.size.x / 2 - 17 / 2, 0)).floor()
 		return [
 			new Tile({
 				pos: tilePos,
-				size: new Vector(11, 11),
+				size: new Vector(17, 17),
 				onMount: tweenedMovement,
 			}),
 			new Rectangle({
-				pos: tilePos.add(new Vector(10, 3)),
-				size: new Vector(1, 5),
+				pos: tilePos.add(new Vector(16, 3)),
+				size: new Vector(1, 11),
 				color: Color.grey,
 				onMount: tweenedMovement,
 			}),
 			new Rectangle({
-				pos: tilePos.add(new Vector(10, 3)),
-				size: new Vector(1, 5),
+				pos: tilePos.add(new Vector(16, 3)),
+				size: new Vector(1, 11),
 				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { delay, duration })
@@ -2104,21 +2129,21 @@ class Title extends GameObject {
 				}
 			}),
 			new GameText({
-				pos: tilePos.add(new Vector(-27, 4)),
-				text: `ONNECTION`,
+				pos: tilePos.add(new Vector(-31, 5)),
+				text: `NNECTION`,
 				onMount: function () {
-					Animate.slide(this, { delay, duration, to: this.pos.add(new Vector(18)) })
+					Animate.slide(this, { delay, duration, to: this.pos.add(new Vector(47 - slideAmount)) })
 				}
 			}),
 			new Rectangle({
 				pos: tilePos.add(new Vector(0, 3)),
-				size: new Vector(1, 5),
+				size: new Vector(1, 11),
 				color: Color.grey,
 				onMount: tweenedMovement,
 			}),
 			new Rectangle({
 				pos: tilePos.add(new Vector(0, 3)),
-				size: new Vector(1, 5),
+				size: new Vector(1, 11),
 				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { delay, duration })
@@ -2127,24 +2152,24 @@ class Title extends GameObject {
 			}),
 			new Rectangle({
 				pos: tilePos.add(new Vector(-Game.viewRes.x, 3)),
-				size: new Vector(Game.viewRes.x, 5),
+				size: new Vector(Game.viewRes.x, 11),
 				onMount: tweenedMovement,
 			}),
 			new GameText({
-				pos: tilePos.add(new Vector(2, 4)),
+				pos: tilePos.add(new Vector(2, 5)),
 				text: `C`,
 				onMount: function () {
-					Animate.slide(this, { delay, duration, to: this.pos.diff(new Vector(slideAmount + 4)) })
+					Animate.slide(this, { delay, duration, to: this.pos.diff(new Vector(slideAmount + 6)) })
 				}
 			}),
 			new Rectangle({
 				pos: tilePos.add(new Vector(1, 3)),
-				size: new Vector(9, 5),
+				size: new Vector(15, 11),
 				onMount: tweenedMovement
 			}),
 			new ColoredSprite({
-				pos: tilePos.add(new Vector(2, 2)),
-				size: new Vector(7, 7),
+				pos: tilePos.add(new Vector(3, 3)),
+				size: new Vector(11, 11),
 				asset: `circle`,
 				onMount: tweenedMovement,
 			}),
@@ -2157,7 +2182,7 @@ class OpeningScreen extends GameObject {
 		return [
 			new GameText({
 				text: `FEDETIBALDO\nPRESENTS`,
-				pos: new Vector(4, Game.viewRes.y - 4 - 4 - 2),
+				pos: new Vector(8, Game.viewRes.y - 11 /* 7 * 1.5 */ - 7 - 8),
 				lineHeight: 1.5,
 				opacity: 0,
 				onMount: function () {
@@ -2171,7 +2196,7 @@ class OpeningScreen extends GameObject {
 				align: `center`,
 				justify: `center`,
 				direction: `row`,
-				spaceBetween: 2,
+				spaceBetween: 3,
 				opacity: 0,
 				onMount: function () {
 					const initialChildrenCount = 4
@@ -2179,14 +2204,14 @@ class OpeningScreen extends GameObject {
 					const animation = Animate.fadeIn(this, { duration: initialChildrenCount * lifeSpan, delay: 2500 })
 					animation.on(`start`, () => {
 						this.addChildren(range(4).map(index => new Tile({
-							size: new Vector(11, 11),
+							size: new Vector(17, 17),
 							createChildren: function () {
 								return [this.createChild(index - 1)]
 							},
 							createChild: (assetIndex) => {
 								return new ColoredSprite({
-									pos: new Vector(2, 2),
-									size: new Vector(7, 7),
+									pos: new Vector(3, 3),
+									size: new Vector(11, 11),
 									asset: Math.abs(assetIndex % 4),
 								})
 							},
@@ -2210,13 +2235,70 @@ class OpeningScreen extends GameObject {
 						})))
 					})
 					animation.on(`end`, () => {
-						// const size = new Vector(45, 11)
-						this.addChild(new Title({}))
+						// const size = new Vector(45, 17)
+						this.addChild(new Title({ animate: true }))
 						// this.destroy()
 					})
 				},
 			})
 		]
+	}
+}
+
+class TrophiesScreen extends GameObject {
+	createChildren() {
+		const padding = new Vector(4, 4)
+		const flexSize = Game.viewRes.diff(padding.mul(2))
+		return [
+			new Flexbox({
+				pos: padding,
+				size: flexSize,
+				direction: `column`,
+				justify: `start`,
+				align: `start`,
+				spaceBetween: 6,
+				children: [
+					new Area({
+						size: new Vector(flexSize.x / 2, 4),
+						onClick: () => this.back(),
+						children: [
+							new GameText({
+								text: `< BACK`,
+							}),
+						],
+					}),
+					...TrophyCase.trophies
+						.filter(trophy => !(trophy instanceof Record))
+						.map((trophy, index) => new Button({
+							text: trophy.name,
+							locked: !trophy.unlocked,
+							size: new Vector(flexSize.x, 17),
+							onClick: () => this.openModal(trophy.message),
+						})),
+				],
+			}),
+		]
+	}
+	openModal(text) {
+		this.freezed = true
+		const modal = new Modal({ text })
+		Game.root.addChild(modal)
+		modal.on(`close`, () => this.freezed = false)
+	}
+	async back() {
+		const viewWidth = new Vector(Game.viewRes.x, 0)
+		const nextScreen = new Menu({
+			pos: viewWidth.mul(-1),
+		})
+		Game.root.addChild(nextScreen)
+		const slideDuration = 300
+		await Promise.all([
+			Animate.slide(this, { duration: slideDuration, to: this.pos.add(viewWidth) }).promise,
+			Animate.fadeOut(this, { duration: slideDuration }).promise,
+			Animate.slide(nextScreen, { duration: slideDuration, to: new Vector() }).promise,
+			Animate.fadeIn(nextScreen, { duration: slideDuration }).promise,
+		])
+		this.destroy()
 	}
 }
 
