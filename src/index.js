@@ -1891,10 +1891,7 @@ class LevelsScreen extends GameObject {
 					name: `GET SQUARE`,
 					comboLength: 4,
 					locked: TrophyCase.getTrophy(`3 IN A ROW`).getBest() <= 20,
-					unlockCondition: `SCORE MORE
-						THAN 20 POINTS
-						IN '3 IN A ROW'
-						TO UNLOCK`,
+					unlockCondition: `SCORE MORE THAN 20 POINTS IN '3 IN A ROW' TO UNLOCK`,
 					board: `55 55 55`,
 					time: 60000,
 				},
@@ -1902,10 +1899,7 @@ class LevelsScreen extends GameObject {
 					name: `HIGH FIVE`,
 					comboLength: 5,
 					locked: TrophyCase.getTrophy(`GET SQUARE`).getBest() <= 15,
-					unlockCondition: `SCORE MORE
-						THAN 15 POINTS
-						IN 'GET SQUARE'
-						TO UNLOCK`,
+					unlockCondition: `SCORE MORE THAN 15 POINTS IN 'GET SQUARE' TO UNLOCK`,
 					board: `f1 78 1a`,
 					time: 60000,
 				},
@@ -1913,10 +1907,7 @@ class LevelsScreen extends GameObject {
 					name: `SIX PACK`,
 					comboLength: 6,
 					locked: TrophyCase.getTrophy(`ARCADE`).getBest() <= 30,
-					unlockCondition: `SCORE MORE
-						THAN 30 POINTS
-						IN ARCADE TO
-						UNLOCK`,
+					unlockCondition: `SCORE MORE THAN 30 POINTS IN ARCADE TO UNLOCK`,
 					board: `eb 69 28`,
 					time: 60000,
 				},
@@ -2075,10 +2066,7 @@ class Menu extends GameObject {
 			this.destroy()
 		} else {
 			Game.root.addChild(new Modal({
-				text: `SCORE MORE
-					THAN 10 POINTS
-					IN 'HIGH FIVE'
-					TO UNLOCK`,
+				text: `SCORE MORE THAN 10 POINTS IN 'HIGH FIVE' TO UNLOCK`,
 			}))
 		}
 	}
