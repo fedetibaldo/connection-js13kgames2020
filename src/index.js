@@ -1202,7 +1202,7 @@ class Button extends Area {
 		return new Sprite({
 			asset: `lock`,
 			size: new Vector(11, 11),
-			pos: new Vector(this.size.x - 12, 5),
+			pos: new Vector(this.size.x - 11 - this.padding, (this.size.y - 11) / 2),
 		})
 	}
 	render(ctx) {
