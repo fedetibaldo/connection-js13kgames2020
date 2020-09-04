@@ -45,6 +45,9 @@ class Vector {
 	}
 }
 
+const logins = +localStorage.getItem(`logins`) || 0
+localStorage.setItem(`logins`, logins + 1)
+
 class Color {
 	constructor(r = 0, g = 0, b = 0, a = 255) {
 		this.r = r
@@ -181,6 +184,8 @@ class GameObject extends Observable {
 			ctx.translate(x, y)
 			ctx.scale(child.scale, child.scale)
 			ctx.globalAlpha = child.opacity * this.getGlobalOpacity()
+			// ctx.strokeStyle = 'red'
+			// child.size && ctx.strokeRect(0, 0, child.size.x, child.size.y)
 			child.render(ctx)
 			ctx.restore()
 		})
@@ -340,16 +345,26 @@ TrophyCase.trophies = [
 	new Record(`HIGH FIVE`),
 	new Record(`SIX PACK`),
 	new Record(`ARCADE`),
-	new Trophy(`BEAT THE CREATOR`, `SCORE MORE THAN 25 POINTS IN 'GET SQUARE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 25),
-	new Trophy(`THERE WAS MORE!?`, `SEE A PATTERN WITH MORE THAN 6 SYMBOLS`, () => TrophyCase.getTrophy(`ARCADE`).getBest() >= 40),
+	new Trophy(`WELCOME BACK`, `OPEN THE GAME TWICE`, () => +localStorage.getItem('logins') > 1),
+	new Trophy(`HARDCORE PLAYER`, `OPEN THE GAME TEN TIMES`, () => +localStorage.getItem('logins') > 10),
+	new Trophy(`TIME TO SETTLE IT DOWN`, `UNLOCK 'GET SQUARE'`, () => TrophyCase.getTrophy(`3 IN A ROW`).getBest() > 20),
+	new Trophy(`YOU'RE AWESOME`, `UNLOCK 'HIGH FIVE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 15),
+	new Trophy(`THEORETICALLY ENDLESS FUN`, `UNLOCK 'ARCADE'`, () => TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 10),
+	new Trophy(`CULTURIST`, `UNLOCK 'SIX PACK'`, () => TrophyCase.getTrophy(`ARCADE`).getBest() > 30),
+	new Trophy(`BEAT THE CREATOR I`, `SCORE MORE THAN 31 POINTS IN '3 IN A ROW'`, () => TrophyCase.getTrophy(`3 IN A ROW`).getBest() > 31),
+	new Trophy(`BEAT THE CREATOR II`, `SCORE MORE THAN 25 POINTS IN 'GET SQUARE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 25),
+	new Trophy(`BEAT THE CREATOR III`, `SCORE MORE THAN 16 POINTS IN 'HIGH FIVE'`, () => TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 16),
+	new Trophy(`BEAT THE CREATOR IV`, `SCORE MORE THAN 43 POINTS IN 'ARCADE'`, () => TrophyCase.getTrophy(`ARCADE`).getBest() > 43),
+	new Trophy(`BEAT THE CREATOR V`, `SCORE MORE THAN 12 POINTS IN 'SIX PACK'`, () => TrophyCase.getTrophy(`SIX PACK`).getBest() > 12),
 ]
+TrophyCase.updateTrophyStatus()
 
 class GameText extends GameObject {
 	constructor({
 		text = ``,
 		font = gameFont,
 		fontSize = 1, // em
-		lineHeight = 1, // em
+		lineHeight = 1.5, // em
 		size = null,
 		align = `left`,
 		color = Color.white,
@@ -357,14 +372,23 @@ class GameText extends GameObject {
 	}) {
 		super({ text, font, fontSize, lineHeight, size, align, color, ...options })
 		if (!this.size) {
-			this.size = this.measure()
+			this.fixedSize = false
+			this.recalculateSize()
+		} else {
+			this.fixedSize = true
 		}
 	}
+	recalculateSize() {
+		this.size = this.getTextMetrics(this.get(`text`))
+	}
 	render(ctx) {
+		if (!this.fixedSize) {
+			this.recalculateSize()
+		}
 		let startPos = new Vector()
 		if (this.get(`align`) == `center`) {
-			startPos = this.size.mul(1 / 2).diff(
-				new Vector(this.measure().x / 2, 0)
+			startPos = this.size.mul(1/2).diff(
+				this.getTextMetrics(this.get(`text`)).mul(1/2)
 			)
 		}
 
@@ -376,9 +400,11 @@ class GameText extends GameObject {
 		let fromLeft = Math.round(startPos.x)
 		let fromTop = 0 /* startPos.y */
 
-		text.split(`\n`).forEach(line => {
+		const lines = this.splitText(text)
 
+		lines.forEach(line => {
 			line.trim().split(``).forEach(char => {
+
 				const width = this.font.getWidth(char)
 				const offset = this.font.getOffset(char)
 
@@ -407,16 +433,38 @@ class GameText extends GameObject {
 			fromLeft = 0
 			fromTop += Math.round(actualHeight * this.lineHeight)
 		})
+		super.render(ctx)
 	}
-	measure() {
-		const lines = this.get(`text`).split(`\n`)
-		const x = Math.max(
-			...lines.map(line => line.split(``).reduce((length, char) => {
-				return length + this.font.getWidth(char) * this.fontSize
-			}, 0))
-		)
-		const y = lines.length * this.font.getHeight() * this.lineHeight
-		return new Vector(x, y)
+	splitText(text) {
+		const lines = []
+		let cumulativeWidth = 0
+		text.trim().split(` `).forEach((word, index) => {
+			const width = this.getTextMetrics(`${lines[lines.length - 1] && lines[lines.length - 1].length ? ` ` : ``}${word}`).x
+			if (cumulativeWidth + width > this.size.x) {
+				cumulativeWidth = 0
+				lines.push([word])
+			} else {
+				if (!lines[lines.length - 1]) {
+					lines.push([])
+				}
+				lines[lines.length - 1].push(word)
+			}
+			cumulativeWidth += width
+		})
+		return lines.map(words => words.join(` `))
+	}
+	getTextMetrics(text) {
+		const lines = this.fixedSize && !text
+			? this.splitText(this.get(`text`))
+			: [text]
+		return new Vector(
+			Math.max(
+				...lines.map(line => line.split(``).reduce((width, char) => {
+					return width + this.font.getWidth(char) * this.fontSize
+				}, 0))
+			),
+			lines.length * this.font.getHeight() * this.fontSize * this.lineHeight - (1 - this.lineHeight)
+		).floor()
 	}
 }
 
@@ -715,12 +763,12 @@ class Animate {
 	static zoomTo(gameObject, { duration, delay, to }) {
 		const animation = new GameAnimation({ duration, delay })
 		const { pos, size, scale: from } = gameObject
-		const ogPos = pos.add(size.mul(from).diff(size).mul(1/2))
+		const ogPos = pos.add(size.mul(from).diff(size).mul(1 / 2))
 		animation.on(`progress`, progress => {
 			const scale = from + (to - from) * progress
 			// gameObject.pos = pos.add(pos.diff(size.mul(scale).mul(1/2)))
 			gameObject.pos = ogPos.diff(
-				size.mul(scale).diff(size).mul(1/2)
+				size.mul(scale).diff(size).mul(1 / 2)
 			)
 			gameObject.scale = scale
 		})
@@ -829,7 +877,7 @@ class ResultsScreen extends GameObject {
 				color: Color.yellow,
 			})
 			newBest.pos = newBest.pos.diff(
-				newBest.size.mul(newBest.scale).diff(newBest.size).mul(1/2)
+				newBest.size.mul(newBest.scale).diff(newBest.size).mul(1 / 2)
 			)
 			this.addChild(newBest)
 			await Promise.all([
@@ -856,7 +904,7 @@ class ResultsScreen extends GameObject {
 		const score = new GameText({
 			id: `score`,
 			text: `0`,
-			pos: new Vector(4 + scoreLabel.measure().x, 28 + 8 + 4 + 2),
+			pos: new Vector(4 + scoreLabel.size.x, 28 + 8 + 4 + 2),
 			opacity: 0,
 		})
 		const bestLabel = new GameText({
@@ -868,7 +916,7 @@ class ResultsScreen extends GameObject {
 		const best = new GameText({
 			id: `best`,
 			text: `${TrophyCase.getTrophy(this.level.name).getBest()}`,
-			pos: new Vector(4 + bestLabel.measure().x, 28 + 8 + 4 + 2 + 4 + 4),
+			pos: new Vector(4 + bestLabel.size.x, 28 + 8 + 4 + 2 + 4 + 4),
 			opacity: 0,
 		})
 		return [
@@ -940,7 +988,7 @@ class Sprite extends GameObject {
 		spritesheet = assets,
 		...options
 	}) {
-		super({ asset, spritesheet, ...options})
+		super({ asset, spritesheet, ...options })
 	}
 	render(ctx) {
 		ctx.drawImage(
@@ -1106,7 +1154,7 @@ class Tile extends Area {
 class Modal extends GameObject {
 	constructor({
 		text = ``,
-		pos = Game.viewRes.mul(1/2),
+		pos = Game.viewRes.mul(1 / 2),
 		size = Game.viewRes,
 		...options
 	}) {
@@ -1189,7 +1237,7 @@ class Button extends Area {
 			new GameText({
 				text: this.text,
 				align: this.align,
-				size: this.size.diff(new Vector(this.padding + this.border, this.padding + this.border).mul(2)),
+				size: this.size.diff(new Vector(this.padding + this.border + (this.locked ? 11 / 2 : 0), this.padding + this.border).mul(2)),
 				pos: new Vector(this.padding + this.border, this.padding + this.border),
 			}),
 		]
@@ -1293,7 +1341,7 @@ class Combination extends GameObject {
 		})
 	}
 	createRow(combination) {
-		return new Flexbox ({
+		return new Flexbox({
 			size: new Vector(this.parent.size.x, 11),
 			direction: `row`,
 			justify: `center`,
@@ -1595,7 +1643,7 @@ class GameBoard extends GameObject {
 					return
 				}
 			}
-			zzfx(1,0,100,.02,.05,.02,0,0,0,0,100,.05,0,0,0,0,0,1,0);
+			zzfx(1, 0, 100, .02, .05, .02, 0, 0, 0, 0, 100, .05, 0, 0, 0, 0, 0, 1, 0);
 			this.tilesPlayed.push(coord)
 			this.comboPlayed.push(value)
 			tile.accentColor = Color.yellow
@@ -1628,7 +1676,7 @@ class GameBoard extends GameObject {
 				Animate.shake(tile, { duration: 200 })
 			})
 			// zzfx(...[,0,202,.03,.04,.01,2,,,,,,,,1.9,,,,.01]); // Random 50
-			zzfx(1,0,300,.03,.04,.01,1,0,0,0,0,0,0,0,2.5,0,0,0,.01); // Random 50
+			zzfx(1, 0, 300, .03, .04, .01, 1, 0, 0, 0, 0, 0, 0, 0, 2.5, 0, 0, 0, .01); // Random 50
 		}
 		this.comboPlayed = []
 		this.tilesPlayed = []
@@ -1755,7 +1803,7 @@ class Level extends GameObject {
 			// /* this.turn % 4 == 0 && */ zzfx(...[,0,200,.03,.05,.09,,,5,10,200,.12,,,,,.13,,.05]); // Select - Mutation 9
 			// this.turn % 4 == 1 && zzfx(...[,0,800,.02,.05,.36,1,,,,200,.12,.12,,,,.12,,.05]); // Select - Mutation 9
 			// this.turn % 4 == 2 && zzfx(...[,0,800,.01,.025,.18,1,,,,200,.06,.06,,,,.06,,.025]); // Select - Mutation 9
-			/* this.turn % 4 == 3 && */ zzfx(1,0,800,.01,.025,.18,0,0,0,0,200,.06,0,0,0,0,0,2,.025); // Select - Mutation 9
+			/* this.turn % 4 == 3 && */ zzfx(1, 0, 800, .01, .025, .18, 0, 0, 0, 0, 200, .06, 0, 0, 0, 0, 0, 2, .025); // Select - Mutation 9
 			this.getChild(`score`).increment()
 		}
 		this.turn++
@@ -1774,7 +1822,7 @@ class Level extends GameObject {
 			this.getChild(`countdown`).reduceBy(2000)
 			Animate.shake(this.getChild(`combination`), { duration: 200 })
 			Animate.shake(this.getChild(`board`), { duration: 200 })
-			zzfx(1,0,202,.03,.04,.01,2,0,0,0,0,0,0,0,1.9,0,0,0,.01); // Random 50
+			zzfx(1, 0, 202, .03, .04, .01, 2, 0, 0, 0, 0, 0, 0, 0, 1.9, 0, 0, 0, .01); // Random 50
 		} else if (this.combo.length) {
 			this.nextTurn()
 		}
@@ -1799,7 +1847,7 @@ class Score extends GameObject {
 		const popup = new GameText({
 			text: `+1`,
 			color: Color.yellow,
-			pos: new Vector(Math.round((Game.viewRes.x - 16) / 2 + this.labelObject.measure().x / 2), 0),
+			pos: new Vector(Math.round((Game.viewRes.x - 16) / 2 + this.labelObject.getTextMetrics().x / 2), 0),
 		})
 		this.addChild(popup)
 		const liftAnimation = Animate.lift(popup, { duration: 1000 })
@@ -1981,9 +2029,8 @@ class Menu extends GameObject {
 					}),
 					new Button({
 						text: `TROPHIES`,
-						locked: true,
 						size: new Vector(flexSize.x, 17),
-						onClick: () => this.comingSoon(),
+						onClick: () => this.browseTrophies(),
 					}),
 					// new Button({
 					// 	text: `TUTORIAL`,
@@ -2067,7 +2114,7 @@ class Flexbox extends GameObject {
 
 		// justify == `start` -> offset[mainAxis] = 0 (already is)
 		if (this.justify == `center`) {
-			offset[mainAxis] = this.size.mul(1/2).diff(childrenTotalSize.mul(1/2))[mainAxis]
+			offset[mainAxis] = this.size.mul(1 / 2).diff(childrenTotalSize.mul(1 / 2))[mainAxis]
 		} else if (this.justify == `end`) {
 			offset[mainAxis] = this.size.diff(childrenTotalSize)[mainAxis]
 		}
@@ -2078,7 +2125,7 @@ class Flexbox extends GameObject {
 
 			// align == `start` -> offset[secondaryAxis] = 0 (already is)
 			if (this.align == `center`) {
-				offset[secondaryAxis] = this.size.mul(1/2).diff(child.size.mul(1/2))[secondaryAxis]
+				offset[secondaryAxis] = this.size.mul(1 / 2).diff(child.size.mul(1 / 2))[secondaryAxis]
 			} else if (this.align == `end`) {
 				offset[secondaryAxis] = this.size.diff(child.size)[secondaryAxis]
 			}
@@ -2183,7 +2230,6 @@ class OpeningScreen extends GameObject {
 			new GameText({
 				text: `FEDETIBALDO\nPRESENTS`,
 				pos: new Vector(8, Game.viewRes.y - 11 /* 7 * 1.5 */ - 7 - 8),
-				lineHeight: 1.5,
 				opacity: 0,
 				onMount: function () {
 					Animate.fadeIn(this, { duration: 1000 })
@@ -2247,7 +2293,7 @@ class OpeningScreen extends GameObject {
 
 class TrophiesScreen extends GameObject {
 	createChildren() {
-		const padding = new Vector(4, 4)
+		const padding = new Vector(8, 12)
 		const flexSize = Game.viewRes.diff(padding.mul(2))
 		return [
 			new Flexbox({
@@ -2259,7 +2305,7 @@ class TrophiesScreen extends GameObject {
 				spaceBetween: 6,
 				children: [
 					new Area({
-						size: new Vector(flexSize.x / 2, 4),
+						size: new Vector(flexSize.x / 2, 7 + 12 - 6),
 						onClick: () => this.back(),
 						children: [
 							new GameText({
@@ -2269,12 +2315,30 @@ class TrophiesScreen extends GameObject {
 					}),
 					...TrophyCase.trophies
 						.filter(trophy => !(trophy instanceof Record))
-						.map((trophy, index) => new Button({
-							text: trophy.name,
-							locked: !trophy.unlocked,
-							size: new Vector(flexSize.x, 17),
-							onClick: () => this.openModal(trophy.message),
-						})),
+						.sort((a, z) => {
+							if (a.unlocked && z.unlocked) {
+								return TrophyCase.trophies.indexOf(a) - TrophyCase.trophies.indexOf(z)
+							} else if (a.unlocked) {
+								return -1
+							} else if (z.unlocked) {
+								return 1
+							} else {
+								return TrophyCase.trophies.indexOf(a) - TrophyCase.trophies.indexOf(z)
+							}
+						})
+						.map((trophy, index) => {
+							const locked = !trophy.unlocked
+							const tempText = new GameText({
+								text: trophy.name,
+								size: new Vector(flexSize.x - 8 - (locked ? 11 : 0), 7),
+							})
+							return new Button({
+								text: trophy.name,
+								locked,
+								size: new Vector(flexSize.x, tempText.getTextMetrics().y + 8),
+								onClick: () => this.openModal(trophy.message),
+							})
+						}),
 				],
 			}),
 		]
