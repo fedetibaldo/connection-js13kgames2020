@@ -773,21 +773,20 @@ class Animate {
 		})
 		return animation
 	}
-	static fadeIn(gameObject, { duration, delay }) {
+	static fadeTo(gameObject, { duration, delay, to }) {
 		const animation = new GameAnimation({ duration, delay })
-		const from = gameObject.opacity
-		const distance = 1 - gameObject.opacity
+		const { opacity: from } = gameObject
 		animation.on(`progress`, progress => {
-			gameObject.opacity = from + distance * progress
+			const opacity = from + (to - from) * progress
+			gameObject.opacity = opacity
 		})
 		return animation
 	}
-	static fadeOut(gameObject, { duration, delay }) {
-		const animation = new GameAnimation({ duration, delay })
-		animation.on(`progress`, progress => {
-			gameObject.opacity = 1 - progress
-		})
-		return animation
+	static fadeIn(gameObject, options) {
+		return Animate.fadeTo(gameObject, { ...options, to: 1 })
+	}
+	static fadeOut(gameObject, options) {
+		return Animate.fadeTo(gameObject, { ...options, to: 0 })
 	}
 	static blink(gameObject, { duration, delay }) {
 		const animation = new GameAnimation({ duration, delay })
@@ -2068,20 +2067,28 @@ class Menu extends GameObject {
 	createChildren() {
 		const offset = new Vector(0, 8)
 		const padding = new Vector(8, 8)
+		const title = new Title({
+			id: `title`,
+			animate: this.animate,
+		})
 		const flexSize = Game.viewRes.diff(padding.mul(2)).diff(offset)
 		return [
 			new Flexbox({
 				pos: offset.add(padding),
+				size: new Vector(flexSize.x, title.size.y),
+				children: [
+					title,
+				],
+			}),
+			new Flexbox({
+				id: `body`,
+				pos: new Vector(offset.add(padding).x, offset.add(padding.mul(3)).add(title.size).y),
 				size: flexSize,
 				align: `center`,
 				justify: `start`,
 				direction: `column`,
 				spaceBetween: 6,
 				children: [
-					new Title({
-						size: new Vector(45, 19 + 8),
-						animate: this.animate,
-					}),
 					new Button({
 						text: `LEVELS`,
 						size: new Vector(flexSize.x, 17),
@@ -2291,13 +2298,14 @@ class OpeningScreen extends GameObject {
 	createChildren() {
 		return [
 			new GameText({
-				text: `FEDETIBALDO\nPRESENTS`,
+				text: `FEDETIBALDO PRESENTS`,
+				size: Game.viewRes,
 				pos: new Vector(8, Game.viewRes.y - 11 /* 7 * 1.5 */ - 7 - 8),
 				opacity: 0,
-				onMount: function () {
-					Animate.fadeIn(this, { duration: 1000 })
-					const outAnimation = Animate.fadeOut(this, { duration: 1000, delay: 1500 })
-					outAnimation.on(`end`, () => this.destroy())
+				onMount: async function () {
+					await Animate.fadeIn(this, { duration: 1000 }).promise
+					await Animate.fadeOut(this, { duration: 1000, delay: 500 }).promise
+					this.destroy()
 				},
 			}),
 			new Flexbox({
@@ -2343,10 +2351,20 @@ class OpeningScreen extends GameObject {
 							},
 						})))
 					})
-					animation.on(`end`, () => {
-						// const size = new Vector(45, 17)
-						this.addChild(new Title({ animate: true }))
-						// this.destroy()
+					animation.on(`end`, async () => {
+						const menu = new Menu({ animate: true })
+						menu.freezed = true
+						const title = menu.getChild(`title`)
+						const body = menu.getChild(`body`)
+						body.opacity = 0
+						Game.root.getChild(`main`).addChild(menu)
+						const ogPos = title.pos.clone()
+						const center = Game.viewRes.mul(1/2).diff(title.getGlobalPosition()).diff(title.size.mul(1/2).round())
+						const startPos = new Vector(ogPos.x, center.y)
+						title.pos = startPos
+						await Animate.slide(title, { duration: 800, delay: 800 + 500, to: ogPos }).promise
+						await Animate.fadeIn(body, { duration: 400 })
+						menu.freezed = false
 					})
 				},
 			})
@@ -2464,9 +2482,10 @@ function shuffle(array) {
 	])
 
 	// append level
-	Game.root.getChild(`main`).addChild(new Menu({
-		animate: true
-	}))
+	Game.root.getChild(`main`).addChild(+localStorage.getItem('logins') > 1
+		? new Menu({ animate: true })
+		: new OpeningScreen()
+	)
 
 	TrophyCase.updateTrophyStatus()
 
