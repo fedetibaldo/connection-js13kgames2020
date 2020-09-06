@@ -387,11 +387,11 @@ TrophyCase.trophies = [
 	new Trophy(`YOU'RE AWESOME`, `UNLOCK 'HIGH FIVE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 15),
 	new Trophy(`THEORETICALLY ENDLESS FUN`, `UNLOCK 'ARCADE'`, () => TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 10),
 	new Trophy(`CULTURIST`, `UNLOCK 'SIX PACK'`, () => TrophyCase.getTrophy(`ARCADE`).getBest() > 30),
-	new Trophy(`BEAT THE CREATOR I`, `SCORE MORE THAN 31 POINTS IN '3 IN A ROW'`, () => TrophyCase.getTrophy(`3 IN A ROW`).getBest() > 31),
-	new Trophy(`BEAT THE CREATOR II`, `SCORE MORE THAN 25 POINTS IN 'GET SQUARE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 25),
-	new Trophy(`BEAT THE CREATOR III`, `SCORE MORE THAN 16 POINTS IN 'HIGH FIVE'`, () => TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 16),
-	new Trophy(`BEAT THE CREATOR IV`, `SCORE MORE THAN 43 POINTS IN 'ARCADE'`, () => TrophyCase.getTrophy(`ARCADE`).getBest() > 43),
-	new Trophy(`BEAT THE CREATOR V`, `SCORE MORE THAN 12 POINTS IN 'SIX PACK'`, () => TrophyCase.getTrophy(`SIX PACK`).getBest() > 12),
+	new Trophy(`OVERACHIEVER I`, `SCORE MORE THAN 25 POINTS IN '3 IN A ROW'`, () => TrophyCase.getTrophy(`3 IN A ROW`).getBest() > 25),
+	new Trophy(`OVERACHIEVER II`, `SCORE MORE THAN 20 POINTS IN 'GET SQUARE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 20),
+	new Trophy(`OVERACHIEVER III`, `SCORE MORE THAN 15 POINTS IN 'HIGH FIVE'`, () => TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 15),
+	new Trophy(`OVERACHIEVER IV`, `SCORE MORE THAN 40 POINTS IN 'ARCADE'`, () => TrophyCase.getTrophy(`ARCADE`).getBest() > 40),
+	new Trophy(`OVERACHIEVER V`, `SCORE MORE THAN 15 POINTS IN 'SIX PACK'`, () => TrophyCase.getTrophy(`SIX PACK`).getBest() > 15),
 	new Trophy(`ALL STARS`, `UNLOCK ALL TROPHIES`, () => TrophyCase.trophies.filter(trophy => !(trophy instanceof Record) && trophy.name != `ALL STARS`).every(trophy => trophy.unlocked)),
 ]
 
@@ -1372,7 +1372,7 @@ class Combination extends GameObject {
 		newRow.children.forEach((newChild, index) => {
 			Animate.jumpIn(newChild, {
 				duration: 200,
-				delay: (oldFlex && oldFlex.children.length * 100 || 0) + 50 * index,
+				delay: 300 + 50 * index,
 			})
 		})
 	}
@@ -1806,7 +1806,7 @@ class Level extends GameObject {
 					new Button({
 						id: `button`,
 						align: `center`,
-						text: `404`,
+						text: `NOT FOUND`,
 						size: new Vector(Game.viewRes.x - 16, 17),
 						onClick: () => this.onCombinationNotFound(),
 					}),
