@@ -305,6 +305,10 @@ class Trophy {
 	getMessage() {
 		return window.localStorage.getItem(this.getFullPath())
 	}
+	unlock() {
+		this.unlocked = true
+		this.setMessage(this.message)
+	}
 	setMessage(newMessage) {
 		window.localStorage.setItem(this.getFullPath(), newMessage)
 	}
@@ -332,11 +336,43 @@ class TrophyCase {
 		return this.trophies.find(trophy => trophy.name == name)
 	}
 	static updateTrophyStatus() {
+		const unlockedTrophies = []
 		this.trophies.forEach(trophy => {
 			if (!trophy.unlocked && trophy.condition()) {
-				trophy.unlocked = true
+				trophy.unlock()
+				unlockedTrophies.push(trophy)
 			}
 		})
+		TrophyCase.notifyTrophies(unlockedTrophies)
+	}
+	static async notifyTrophies(trophies) {
+		for (let i = 0; i < trophies.length; i++) {
+			await TrophyCase.notifyTrophy(trophies[i])
+		}
+	}
+	static async notifyTrophy(trophy) {
+		const padding = new Vector(4, 4)
+		const implicitButtonPadding = new Vector(4, 4)
+		const tempText = new GameText({
+			text: trophy.name,
+			size: Game.viewRes.diff(padding.mul(2)).diff(implicitButtonPadding.mul(2)),
+		})
+		const startPos = new Vector(padding.x, -tempText.getTextMetrics().y - implicitButtonPadding.mul(2).y)
+		const popup = new Button({
+			text: trophy.name,
+			freezed: true,
+			size: new Vector(Game.viewRes.diff(padding.mul(2)).x, tempText.getTextMetrics().y + implicitButtonPadding.mul(2).y),
+			pos: startPos,
+		})
+		Game.root.getChild(`popup`).addChild(popup)
+		await Promise.all([
+			Animate.slide(popup, { delay: 400, duration: 400, to: padding }).promise,
+			Animate.fadeIn(popup, { delay: 400, duration: 400 }).promise
+		])
+		await Promise.all([
+			Animate.slide(popup, { delay: 1000, duration: 400, to: startPos }).promise,
+			Animate.fadeOut(popup, { delay: 1000, duration: 400 }).promise
+		])
 	}
 }
 TrophyCase.trophies = [
@@ -346,7 +382,7 @@ TrophyCase.trophies = [
 	new Record(`SIX PACK`),
 	new Record(`ARCADE`),
 	new Trophy(`WELCOME BACK`, `OPEN THE GAME TWICE`, () => +localStorage.getItem('logins') > 1),
-	new Trophy(`HARDCORE PLAYER`, `OPEN THE GAME TEN TIMES`, () => +localStorage.getItem('logins') > 10),
+	new Trophy(`RETURNING CUSTOMER`, `OPEN THE GAME TEN TIMES`, () => +localStorage.getItem('logins') > 10),
 	new Trophy(`TIME TO SETTLE IT DOWN`, `UNLOCK 'GET SQUARE'`, () => TrophyCase.getTrophy(`3 IN A ROW`).getBest() > 20),
 	new Trophy(`YOU'RE AWESOME`, `UNLOCK 'HIGH FIVE'`, () => TrophyCase.getTrophy(`GET SQUARE`).getBest() > 15),
 	new Trophy(`THEORETICALLY ENDLESS FUN`, `UNLOCK 'ARCADE'`, () => TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 10),
@@ -356,8 +392,8 @@ TrophyCase.trophies = [
 	new Trophy(`BEAT THE CREATOR III`, `SCORE MORE THAN 16 POINTS IN 'HIGH FIVE'`, () => TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 16),
 	new Trophy(`BEAT THE CREATOR IV`, `SCORE MORE THAN 43 POINTS IN 'ARCADE'`, () => TrophyCase.getTrophy(`ARCADE`).getBest() > 43),
 	new Trophy(`BEAT THE CREATOR V`, `SCORE MORE THAN 12 POINTS IN 'SIX PACK'`, () => TrophyCase.getTrophy(`SIX PACK`).getBest() > 12),
+	new Trophy(`ALL STARS`, `UNLOCK ALL TROPHIES`, () => TrophyCase.trophies.filter(trophy => !(trophy instanceof Record) && trophy.name != `ALL STARS`).every(trophy => trophy.unlocked)),
 ]
-TrophyCase.updateTrophyStatus()
 
 class GameText extends GameObject {
 	constructor({
@@ -463,7 +499,7 @@ class GameText extends GameObject {
 					return width + this.font.getWidth(char) * this.fontSize
 				}, 0))
 			),
-			lines.length * this.font.getHeight() * this.fontSize * this.lineHeight - (1 - this.lineHeight)
+			lines.length * this.font.getHeight() * this.fontSize * this.lineHeight - (this.lineHeight - 1)
 		).floor()
 	}
 }
@@ -844,7 +880,6 @@ class ResultsScreen extends GameObject {
 	updateTrophy() {
 		if (this.previousBest < this.score) {
 			this.trophy.setBest(this.score)
-			TrophyCase.updateTrophyStatus()
 		}
 	}
 	async entryAnimation() {
@@ -886,6 +921,7 @@ class ResultsScreen extends GameObject {
 				Animate.fadeIn(newBest, { duration: 400 }).promise,
 			])
 		}
+		TrophyCase.updateTrophyStatus()
 		const retry = this.getChild(`retry`)
 		const menu = this.getChild(`menu`)
 		await Promise.all([
@@ -954,9 +990,9 @@ class ResultsScreen extends GameObject {
 	}
 	retry() {
 		if (this.level instanceof Arcade) {
-			Game.root.addChild(new Arcade({ ...this.level, children: null, opacity: 1 }))
+			Game.root.getChild(`main`).addChild(new Arcade({ ...this.level, children: null, opacity: 1 }))
 		} else {
-			Game.root.addChild(new Level({ ...this.level, children: null, opacity: 1 }))
+			Game.root.getChild(`main`).addChild(new Level({ ...this.level, children: null, opacity: 1 }))
 		}
 		this.destroy()
 	}
@@ -970,7 +1006,7 @@ class ResultsScreen extends GameObject {
 			? new Menu(config)
 			: new LevelsScreen(config)
 
-		Game.root.addChild(nextScreen)
+		Game.root.getChild(`main`).addChild(nextScreen)
 		const slideDuration = 300
 		await Promise.all([
 			Animate.slide(this, { duration: slideDuration, to: this.pos.add(viewWidth) }).promise,
@@ -1315,7 +1351,7 @@ class Combination extends GameObject {
 		this.swap()
 	}
 	highlight() {
-		this.children.forEach(child => child.accentColor = Color.yellow)
+		this.children[0] && this.children[0].children.forEach(child => child.accentColor = Color.yellow)
 	}
 	swap() {
 		// Animate old children out
@@ -1336,7 +1372,7 @@ class Combination extends GameObject {
 		newRow.children.forEach((newChild, index) => {
 			Animate.jumpIn(newChild, {
 				duration: 200,
-				delay: (this.children.length * 100) + 50 * index
+				delay: (oldFlex && oldFlex.children.length * 100 || 0) + 50 * index,
 			})
 		})
 	}
@@ -1788,7 +1824,7 @@ class Level extends GameObject {
 
 		const outAnimation = Animate.fadeOut(this, { duration: 400 })
 		outAnimation.on(`end`, () => this.destroy())
-		Game.root.addChild(new ResultsScreen({ score: this.score, level: this }))
+		Game.root.getChild(`main`).addChild(new ResultsScreen({ score: this.score, level: this }))
 	}
 	generateCombination() {
 		if (Math.random() > 2 / 3) {
@@ -1961,7 +1997,7 @@ class LevelsScreen extends GameObject {
 		const nextScreen = new Menu({
 			pos: viewWidth.mul(-1),
 		})
-		Game.root.addChild(nextScreen)
+		Game.root.getChild(`main`).addChild(nextScreen)
 		const slideDuration = 300
 		await Promise.all([
 			Animate.slide(this, { duration: slideDuration, to: this.pos.add(viewWidth) }).promise,
@@ -1974,7 +2010,7 @@ class LevelsScreen extends GameObject {
 	playLevel(index) {
 		const level = this.levels[index]
 		if (!level.locked) {
-			Game.root.addChild(new Level({
+			Game.root.getChild(`main`).addChild(new Level({
 				...level
 			}))
 			this.destroy()
@@ -1983,7 +2019,7 @@ class LevelsScreen extends GameObject {
 			const modal = new Modal({
 				text: level.unlockCondition,
 			})
-			Game.root.addChild(modal)
+			Game.root.getChild(`main`).addChild(modal)
 			modal.on(`close`, () => this.freezed = false)
 		}
 	}
@@ -2034,7 +2070,7 @@ class Menu extends GameObject {
 		]
 	}
 	comingSoon() {
-		Game.root.addChild(new Modal({
+		Game.root.getChild(`main`).addChild(new Modal({
 			text: `COMING SOON`,
 		}))
 	}
@@ -2044,7 +2080,7 @@ class Menu extends GameObject {
 		const nextScreen = new screen({
 			pos: offset,
 		})
-		Game.root.addChild(nextScreen)
+		Game.root.getChild(`main`).addChild(nextScreen)
 		const slideDuration = 300
 		await Promise.all([
 			Animate.slide(this, { duration: slideDuration, to: this.pos.diff(offset) }).promise,
@@ -2062,10 +2098,10 @@ class Menu extends GameObject {
 	}
 	playArcade() {
 		if (TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 10) {
-			Game.root.addChild(new Arcade())
+			Game.root.getChild(`main`).addChild(new Arcade())
 			this.destroy()
 		} else {
-			Game.root.addChild(new Modal({
+			Game.root.getChild(`main`).addChild(new Modal({
 				text: `SCORE MORE THAN 10 POINTS IN 'HIGH FIVE' TO UNLOCK`,
 			}))
 		}
@@ -2334,7 +2370,7 @@ class TrophiesScreen extends GameObject {
 	openModal(text) {
 		this.freezed = true
 		const modal = new Modal({ text })
-		Game.root.addChild(modal)
+		Game.root.getChild(`main`).addChild(modal)
 		modal.on(`close`, () => this.freezed = false)
 	}
 	async back() {
@@ -2342,7 +2378,7 @@ class TrophiesScreen extends GameObject {
 		const nextScreen = new Menu({
 			pos: viewWidth.mul(-1),
 		})
-		Game.root.addChild(nextScreen)
+		Game.root.getChild(`main`).addChild(nextScreen)
 		const slideDuration = 300
 		await Promise.all([
 			Animate.slide(this, { duration: slideDuration, to: this.pos.add(viewWidth) }).promise,
@@ -2383,10 +2419,17 @@ function shuffle(array) {
 	// load assets
 	await Promise.all([gameFont.load(), assets.load()])
 
+	Game.root.addChildren([
+		new GameObject({ id: `main` }),
+		new GameObject({ id: `popup` }),
+	])
+
 	// append level
-	Game.root.addChild(new Menu({
+	Game.root.getChild(`main`).addChild(new Menu({
 		animate: true
 	}))
+
+	TrophyCase.updateTrophyStatus()
 
 	// start game
 	Game.play()
