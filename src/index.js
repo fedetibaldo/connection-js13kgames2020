@@ -1043,7 +1043,7 @@ class ResultsScreen extends GameObject {
 			pos: viewWidth.mul(-1),
 		}
 
-		const nextScreen = this.level instanceof Arcade
+		const nextScreen = this.level instanceof Arcade && !(this.previousBest <= 30 && this.score > 30) || (this.level.name == `HIGH FIVE` && this.previousBest <= 10 && this.score > 10)
 			? new Menu(config)
 			: new LevelsScreen(config)
 
@@ -2099,6 +2099,16 @@ class Menu extends GameObject {
 						locked: TrophyCase.getTrophy(`HIGH FIVE`).getBest() <= 10,
 						size: new Vector(flexSize.x, 17),
 						onClick: () => this.playArcade(),
+						onMount: function () {
+							if (!this.locked && !window.localStorage.getItem(`unlocked,ARCADE`)) {
+								const lock = this.createLock()
+								this.addChild(lock)
+								this.opacity = .5
+								Animate.explode(lock, { duration: 400, delay: 400 })
+								Animate.fadeIn(this, { duration: 400, delay: 400 })
+								window.localStorage.setItem(`unlocked,ARCADE`, true)
+							}
+						},
 					}),
 					new Button({
 						text: `TROPHIES`,
