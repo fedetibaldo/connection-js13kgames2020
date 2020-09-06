@@ -1414,7 +1414,7 @@ class Combination extends GameObject {
 		newRow.children.forEach((newChild, index) => {
 			Animate.jumpIn(newChild, {
 				duration: 200,
-				delay: 300 + 50 * index,
+				delay: (oldFlex ? 300 : 0) + 50 * index,
 			})
 		})
 	}
