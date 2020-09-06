@@ -160,7 +160,16 @@ class GameObject extends Observable {
 		this.trigger(`childrenChange`)
 	}
 	getChild(id) {
-		return this.children.find(child => child.id === id)
+		if (id === this.id) {
+			return this
+		} else {
+			for (let i = 0; i < this.children.length; i++) {
+				let needle = this.children[i].getChild(id)
+				if (needle) {
+					return needle
+				}
+			}
+		}
 	}
 	get(prop) {
 		if (typeof this[prop] == `function`) {
@@ -885,8 +894,11 @@ class ResultsScreen extends GameObject {
 	async entryAnimation() {
 		this.freezed = true
 		const title = this.getChild(`title`)
+		const ogPos = title.pos.clone()
+		const center = Game.viewRes.mul(1/2).diff(title.getGlobalPosition())
+		title.pos = new Vector(ogPos.x, center.y)
 		await Animate.blink(title, { duration: 800 }).promise
-		await Animate.slide(title, { duration: 600, delay: 400, to: new Vector(0, 28) }).promise
+		await Animate.slide(title, { duration: 600, delay: 400, to: ogPos }).promise
 		const scoreLabel = this.getChild(`scoreLabel`)
 		const score = this.getChild(`score`)
 		const scoreAnimation = Animate.counter(score, { duration: 1200, to: this.score })
@@ -905,7 +917,7 @@ class ResultsScreen extends GameObject {
 			const newBest = new GameText({
 				...best,
 				size: null,
-				pos: best.pos.clone(),
+				pos: best.getGlobalPosition(),
 				scale: 20,
 				opacity: 0,
 				text: `${this.score} NEW`,
@@ -955,36 +967,66 @@ class ResultsScreen extends GameObject {
 			pos: new Vector(4 + bestLabel.size.x, 28 + 8 + 4 + 2 + 4 + 4),
 			opacity: 0,
 		})
+		const padding = new Vector(8, 8)
+		const flexSize = Game.viewRes.diff(padding.mul(2))
 		return [
-			new GameText({
-				id: `title`,
-				text: `TIME'S UP`,
-				fontSize: 2,
-				opacity: 0,
-				pos: new Vector(0, Game.viewRes.y / 2),
+			new Flexbox({
+				direction: `column`,
+				pos: padding,
+				size: flexSize,
+				spaceBetween: 8,
 				align: `center`,
-			}),
-			scoreLabel,
-			score,
-			bestLabel,
-			best,
-			new Button({
-				id: `retry`,
-				text: `RETRY`,
-				align: `center`,
-				opacity: 0,
-				onClick: () => this.retry(),
-				size: new Vector(Game.viewRes.x / 2 - 6, 17),
-				pos: new Vector(4, 28 + 8 + 4 + 2 + 4 + 4 + 4 + 4 + 3),
-			}),
-			new Button({
-				id: `menu`,
-				text: `MENU`,
-				align: `center`,
-				opacity: 0,
-				onClick: () => this.goToMenu(),
-				size: new Vector(Game.viewRes.x / 2 - 6, 17),
-				pos: new Vector(Game.viewRes.x / 2 + 2, 28 + 8 + 4 + 2 + 4 + 4 + 4 + 4 + 3),
+				justify: `center`,
+				children: [
+					new GameText({
+						id: `title`,
+						text: `TIME'S UP`,
+						fontSize: 2,
+						opacity: 0,
+						pos: new Vector(0, Game.viewRes.y / 2),
+						align: `center`,
+					}),
+					new Flexbox({
+						size: new Vector(flexSize.x, 7),
+						justify: `start`,
+						children: [
+							scoreLabel,
+							score,
+						],
+					}),
+					new Flexbox({
+						size: new Vector(flexSize.x, 7),
+						justify: `start`,
+						children: [
+							bestLabel,
+							best,
+						],
+					}),
+					new Flexbox({
+						direction: `row`,
+						size: new Vector(flexSize.x, 17),
+						spaceBetween: 4,
+						justify: `center`,
+						children: [
+							new Button({
+								id: `retry`,
+								text: `RETRY`,
+								align: `center`,
+								opacity: 0,
+								onClick: () => this.retry(),
+								size: new Vector(flexSize.x / 2 - 2, 17),
+							}),
+							new Button({
+								id: `menu`,
+								text: `MENU`,
+								align: `center`,
+								opacity: 0,
+								onClick: () => this.goToMenu(),
+								size: new Vector(flexSize.x / 2 - 2, 17),
+							}),
+						],
+					}),
+				],
 			}),
 		]
 	}
@@ -1763,9 +1805,6 @@ class Level extends GameObject {
 		this.combo = []
 
 		this.nextTurn()
-	}
-	getChild(id) {
-		return this.children[0].getChild(id)
 	}
 	createChildren() {
 		const padding = new Vector(8, 8)
