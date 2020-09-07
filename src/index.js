@@ -671,6 +671,7 @@ class InputSingleton extends Observable {
 	}
 	onCanvasMouseUp(e) {
 		this.isMouseDown = false
+		this.triggerMouseEvent(`mouseup`, e)
 		if (this.isScrolling) {
 			this.stopMomentum = Game.on(`tick`, (deltaT) => {
 				const delta = this.lastDelta = this.lastDelta.diff(this.lastDelta.mul(this.scrollVelocity * (deltaT / 1000)))
@@ -681,7 +682,6 @@ class InputSingleton extends Observable {
 			})
 		}
 		this.isScrolling = false
-		this.triggerMouseEvent(`mouseup`, e)
 	}
 	onCanvasMouseMove(e) {
 		this.triggerMouseEvent(`mousemove`, e)
@@ -1071,7 +1071,7 @@ class ResultsScreen extends GameObject {
 								align: `center`,
 								opacity: 0,
 								onClick: () => this.retry(),
-								size: new Vector(flexSize.x / 2 - 2, 17),
+								size: new Vector(flexSize.x / 2, 17),
 							}),
 							new Button({
 								id: `menu`,
@@ -1079,7 +1079,7 @@ class ResultsScreen extends GameObject {
 								align: `center`,
 								opacity: 0,
 								onClick: () => this.goToMenu(),
-								size: new Vector(flexSize.x / 2 - 2, 17),
+								size: new Vector(flexSize.x / 2, 17),
 							}),
 						],
 					}),
@@ -1221,7 +1221,7 @@ class Area extends GameObject {
 		this.listeners = []
 	}
 	onMouseEvent(name, event) {
-		if (!this.isFreezed() && this.isPointWithinObject(event.pos) && !Input.isScrolling) {
+		if (!this.isFreezed() && this.isPointWithinObject(event.pos)) {
 			if (!this.isInside) {
 				this.trigger(`mouseenter`, event)
 				this.isInside = true
@@ -1231,7 +1231,9 @@ class Area extends GameObject {
 			}
 			this.trigger(name, event)
 			if (name == `mouseup` && this.isPressed) {
-				this.trigger(`click`, event)
+				if (!Input.isScrolling) {
+					this.trigger(`click`, event)
+				}
 				this.isPressed = false
 			}
 		} else {
