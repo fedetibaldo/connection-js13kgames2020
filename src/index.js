@@ -481,20 +481,33 @@ class GameText extends GameObject {
 		super.render(ctx)
 	}
 	splitText(text) {
-		const lines = []
+		const lines = [[]]
 		let cumulativeWidth = 0
 		text.trim().split(` `).forEach((word, index) => {
-			const width = this.getTextMetrics(`${lines[lines.length - 1] && lines[lines.length - 1].length ? ` ` : ``}${word}`).x
-			if (cumulativeWidth + width > this.size.x) {
-				cumulativeWidth = 0
-				lines.push([word])
-			} else {
-				if (!lines[lines.length - 1]) {
-					lines.push([])
-				}
-				lines[lines.length - 1].push(word)
+			if (lines[lines.length - 1] && lines[lines.length - 1].length) {
+				word = ` ${word}`
 			}
-			cumulativeWidth += width
+			const width = this.getTextMetrics(word).x
+			if (cumulativeWidth + width > this.size.x) {
+				if (width > this.size.x) {
+					const hyphenWidth = this.getTextMetrics(`-`).x
+					const index = word.split(``).findIndex((char, index, word) => {
+						const wordSoFar = word.slice(0, index + 1)
+						return cumulativeWidth + this.getTextMetrics(wordSoFar.join(``)).x + hyphenWidth > this.size.x
+					})
+					if (index > 1) {
+						lines[lines.length - 1].push(`${word.slice(0, index)}-`)
+						word = word.slice(index)
+					}
+					cumulativeWidth = this.getTextMetrics(word).x
+				} else {
+					cumulativeWidth = width
+				}
+				lines.push([word.trim()])
+			} else {
+				lines[lines.length - 1].push(word.trim())
+				cumulativeWidth += width
+			}
 		})
 		return lines.map(words => words.join(` `))
 	}
@@ -614,7 +627,12 @@ class InputSingleton extends Observable {
 
 		this.isMouseDown = false
 		this.isTouchDevice = false
+		this.isScrolling = false
 		this.mousePos = new Vector(0, 0)
+		this.scrollVelocity = 5
+		this.sensitivity = 2
+
+		this.lastDragPoint = null
 
 		Game.canvas.onmousedown = (e) => this.onCanvasMouseDown(e)
 		Game.canvas.onmouseup = (e) => this.onCanvasMouseUp(e)
@@ -623,6 +641,8 @@ class InputSingleton extends Observable {
 		Game.canvas.ontouchstart = (e) => this.onCanvasTouchStart(e)
 		Game.canvas.ontouchend = (e) => this.onCanvasTouchEnd(e)
 		Game.canvas.ontouchmove = (e) => this.onCanvasTouchMove(e)
+
+		Game.canvas.onwheel = (e) => this.onCanvasWheel(e)
 	}
 	onCanvasTouchStart(e) {
 		e = this._normalizeTouchEvent(e)
@@ -645,24 +665,62 @@ class InputSingleton extends Observable {
 	}
 	onCanvasMouseDown(e) {
 		this.isMouseDown = true
+		this.lastDragPoint = this.initialDragPoint = this.normalizePosition(this.eventToVector(e))
+		this.stopMomentum && this.stopMomentum()
 		this.triggerMouseEvent(`mousedown`, e)
 	}
 	onCanvasMouseUp(e) {
 		this.isMouseDown = false
+		if (this.isScrolling) {
+			this.stopMomentum = Game.on(`tick`, (deltaT) => {
+				const delta = this.lastDelta = this.lastDelta.diff(this.lastDelta.mul(this.scrollVelocity * (deltaT / 1000)))
+				this.triggerEvent(`scroll`, { delta })
+				if (delta.length() < 0.1) {
+					this.stopMomentum()
+				}
+			})
+		}
+		this.isScrolling = false
 		this.triggerMouseEvent(`mouseup`, e)
 	}
 	onCanvasMouseMove(e) {
 		this.triggerMouseEvent(`mousemove`, e)
+		if (this.isMouseDown) {
+			const newDragPoint = this.normalizePosition(this.eventToVector(e))
+			if (!this.isScrolling) {
+				const deltaFromStart = newDragPoint.diff(this.initialDragPoint)
+				if (deltaFromStart.length() > this.sensitivity) {
+					this.isScrolling = true
+				}
+			}
+			if (this.isScrolling) {
+				const delta = newDragPoint.diff(this.lastDragPoint)
+				this.lastDelta = delta
+				this.lastDragPoint = newDragPoint
+				this.triggerEvent(`scroll`, { delta })
+			}
+		}
+	}
+	onCanvasWheel(e) {
+		const delta = (e.shiftKey ? new Vector(e.deltaY, 0) : new Vector(0, e.deltaY)).mul(this.scrollVelocity).mul(-1)
+		// const delta = dir.mul(this.scrollVelocity)
+		this.triggerEvent(`scroll`, { delta })
 	}
 	triggerMouseEvent(name, e) {
 		if (!e.isTouchEvent && this.isTouchDevice) {
 			return
 		}
-		const pos = this._normalizePosition(new Vector(e.clientX, e.clientY))
+		const pos = this.normalizePosition(this.eventToVector(e))
 		this.mousePos = pos
-		this.trigger(name, { name, pos })
+		this.triggerEvent(name, { pos })
 	}
-	_normalizePosition(pos) {
+	triggerEvent(name, args) {
+		this.trigger(name, { name, ...args })
+	}
+	eventToVector(e) {
+		return new Vector(e.clientX, e.clientY)
+	}
+	normalizePosition(pos) {
 		const clickPos = pos.diff(Game.viewPos)
 		clickPos.x = clickPos.x * Game.viewRes.x / Game.viewSize.x
 		clickPos.y = clickPos.y * Game.viewRes.y / Game.viewSize.y
@@ -1163,7 +1221,7 @@ class Area extends GameObject {
 		this.listeners = []
 	}
 	onMouseEvent(name, event) {
-		if (!this.isFreezed() && this.isPointWithinObject(event.pos)) {
+		if (!this.isFreezed() && this.isPointWithinObject(event.pos) && !Input.isScrolling) {
 			if (!this.isInside) {
 				this.trigger(`mouseenter`, event)
 				this.isInside = true
@@ -2383,6 +2441,18 @@ class OpeningScreen extends GameObject {
 }
 
 class TrophiesScreen extends GameObject {
+	onMount() {
+		this.listener = Input.on(`scroll`, ({ delta }) => {
+			if (!this.isFreezed()) {
+				this.pos = this.pos.add(new Vector(0, delta.y))
+				this.pos.y = Math.max(-316, Math.min(this.pos.y, 0))
+			}
+		})
+	}
+	destroy() {
+		this.listener()
+		super.destroy()
+	}
 	createChildren() {
 		const padding = new Vector(8, 12)
 		const flexSize = Game.viewRes.diff(padding.mul(2))
@@ -2406,22 +2476,22 @@ class TrophiesScreen extends GameObject {
 					}),
 					...TrophyCase.trophies
 						.filter(trophy => !(trophy instanceof Record))
-						.sort((a, z) => {
-							if (a.unlocked && z.unlocked) {
-								return TrophyCase.trophies.indexOf(a) - TrophyCase.trophies.indexOf(z)
-							} else if (a.unlocked) {
-								return -1
-							} else if (z.unlocked) {
-								return 1
-							} else {
-								return TrophyCase.trophies.indexOf(a) - TrophyCase.trophies.indexOf(z)
-							}
-						})
+						// .sort((a, z) => {
+						// 	if (a.unlocked && z.unlocked) {
+						// 		return TrophyCase.trophies.indexOf(a) - TrophyCase.trophies.indexOf(z)
+						// 	} else if (a.unlocked) {
+						// 		return -1
+						// 	} else if (z.unlocked) {
+						// 		return 1
+						// 	} else {
+						// 		return TrophyCase.trophies.indexOf(a) - TrophyCase.trophies.indexOf(z)
+						// 	}
+						// })
 						.map((trophy, index) => {
 							const locked = !trophy.unlocked
 							const tempText = new GameText({
 								text: trophy.name,
-								size: new Vector(flexSize.x - 8 - (locked ? 11 : 0), 7),
+								size: new Vector(flexSize.x - 10 - (locked ? 11 : 0), 7),
 							})
 							return new Button({
 								text: trophy.name,
