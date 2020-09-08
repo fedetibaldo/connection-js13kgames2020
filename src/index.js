@@ -397,7 +397,7 @@ class TrophyCase {
 	}
 	static async notifyTrophy(trophy) {
 		const padding = new Vector(4, 4)
-		const implicitButtonPadding = new Vector(5, 5)
+		const implicitButtonPadding = new Vector(5, 4)
 		const tempText = new GameText({
 			text: trophy.name,
 			size: Game.viewRes.diff(padding.mul(2)).diff(implicitButtonPadding.mul(2)),
