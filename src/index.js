@@ -619,7 +619,7 @@ class GameFont {
 	}
 }
 
-const gameFont = new GameFont(`./assets/font.png`, `./assets/font.meta.json`)
+const gameFont = new GameFont(`./font.png`, `./font.meta.json`)
 
 class Spritesheet {
 	constructor(sourcePath, meta) {
@@ -651,7 +651,7 @@ class Spritesheet {
 	}
 }
 
-const assets = new Spritesheet(`./assets/sprites.png`, {
+const assets = new Spritesheet(`./sprites.png`, {
 	width: 11,
 	height: 11,
 	assetNames: [`triangle`, `square`, `circle`, `cross`, `lock`],
