@@ -7,12 +7,48 @@
 // There is a small bit of optional code to improve compatibility.
 // Feel free to minify it further for your own needs!
 
-'use strict'; let zzfx, zzfxV, zzfxX
+'use strict';let zzfx,zzfxV,zzfxX,zzfxR
 
 // ZzFXMicro - Zuper Zmall Zound Zynth 
-zzfxV = .3 // volume
-zzfx =    // play sound
-	(t = 1, a = .05, n = 220, e = 0, f = 0, h = .1, M = 0, r = 1, z = 0, o = 0, i = 0, s = 0, u = 0, x = 0, c = 0, d = 0, X = 0, b = 1, m = 0, l = 44100, B = 99 + e * l, C = f * l, P = h * l, g = m * l, w = X * l, A = 2 * Math.PI, D = (t => 0 < t ? 1 : -1), I = B + g + C + P + w, S = (z *= 500 * A / l ** 2), V = (n *= (1 + 2 * a * Math.random() - a) * A / l), j = D(c) * A / 4, k = 0, p = 0, q = 0, v = 0, y = 0, E = 0, F = 1, G = [], H = zzfxX.createBufferSource(), J = zzfxX.createBuffer(1, I, l)) => { for (H.connect(zzfxX.destination); q < I; G[q++] = E)++y > 100 * d && (y = 0, E = k * n * Math.sin(p * c * A / l - j), E = D(E = M ? 1 < M ? 2 < M ? 3 < M ? Math.sin((E % A) ** 3) : Math.max(Math.min(Math.tan(E), 1), -1) : 1 - (2 * E / A % 2 + 2) % 2 : 1 - 4 * Math.abs(Math.round(E / A) - E / A) : Math.sin(E)) * Math.abs(E) ** r * t * zzfxV * (q < B ? q / B : q < B + g ? 1 - (q - B) / g * (1 - b) : q < B + g + C ? b : q < I - w ? (I - q - w) / P * b : 0), E = w ? E / 2 + (w > q ? 0 : (q < I - w ? 1 : (q - I) / w) * G[q - w | 0] / 2) : E), k += 1 - x + 1e9 * (Math.sin(q) + 1) % 2 * x, p += 1 - x + 1e9 * (Math.sin(q) ** 2 + 1) % 2 * x, n += z += 500 * o * A / l ** 3, F && ++F > s * l && (n += i * A / l, V += i * A / l, F = 0), u && ++v > u * l && (n = V, z = S, v = 1, F = F || 1); return J.getChannelData(0).set(G), H.buffer = J, H.start(), H }, zzfxX = new (window.AudioContext || webkitAudioContext)
+zzfxV=.3    // volume
+zzfx=       // play sound
+(q=1,k=.05,c=220,e=0,t=0,u=.1,r=0,F=1,v=0,z=0,w=0,A=0,l=0,B=0,x=0,G=0,d=0,y=1,m=0,C=0)=>{let b=2*Math.PI,H=v*=500*b/zzfxR**2,I=(0<x?1:-1)*b/4,D=c*=(1+2*k*Math.random()-k)*b/zzfxR,Z=[],g=0,E=0,a=0,n=1,J=0,K=0,f=0,p,h;e=99+zzfxR*e;m*=zzfxR;t*=zzfxR;u*=zzfxR;d*=zzfxR;z*=500*b/zzfxR**3;x*=b/zzfxR;w*=b/zzfxR;A*=zzfxR;l=zzfxR*l|0;for(h=e+m+t+u+d|0;a<h;Z[a++]=f)++K%(100*G|0)||(f=r?1<r?2<r?3<r?Math.sin((g%b)**3):Math.max(Math.min(Math.tan(g),1),-1):1-(2*g/b%2+2)%2:1-4*Math.abs(Math.round(g/b)-g/b):Math.sin(g),f=(l?1-C+C*Math.sin(2*Math.PI*a/l):1)*(0<f?1:-1)*Math.abs(f)**F*q*zzfxV*(a<e?a/e:a<e+m?1-(a-e)/m*(1-y):a<e+m+t?y:a<h-d?(h-a-d)/u*y:0),f=d?f/2+(d>a?0:(a<h-d?1:(h-a)/d)*Z[a-d|0]/2):f),p=(c+=v+=z)*Math.sin(E*x-I),g+=p-p*B*(1-1E9*(Math.sin(a)+1)%2),E+=p-p*B*(1-1E9*(Math.sin(a)**2+1)%2),n&&++n>A&&(c+=w,D+=w,n=0),!l||++J%l||(c=D,v=H,n=n||1);q=zzfxX.createBuffer(1,h,zzfxR);q.getChannelData(0).set(Z);c=zzfxX.createBufferSource();c.buffer=q;c.connect(zzfxX.destination);c.start();return c}
+zzfxX=new(window.AudioContext||webkitAudioContext) // audio context
+zzfxR=44100 // sample rate
+
+class Sound {
+	static buttonClick() {
+		// zzfx(1, 0, 200, 0, .01, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0) // Blip 126
+		zzfx(1,0,10,.04,0,.09,0,1,0,0,100,.06,0,0,0,0,0,1,0) // Blip 377
+	}
+	static buttonLocked() {
+		// zzfx(1, 0, 202, .03, .04, .01, 2, 0, 0, 0, 0, 0, 0, 0, 1.9, 0, 0, 0, .01) // Random 50
+		// zzfx(1,0,20,.04,0,.09,0,10,0,0,0,.06,0,0,0,0,0,1,0) // Blip 377
+		zzfx(1,0,20,.04,0,.09,1,10,0,0,-50,.06,0,0,0,0,0,1,0); // Blip 377
+	}
+	static wrongCombination() {
+		Sound.buttonLocked()
+		// zzfx(1, 0, 300, .03, .04, .01, 1, 0, 0, 0, 0, 0, 0, 0, 2.5, 0, 0, 0, .01) // Random 50
+	}
+	static tileSelect(index) {
+		// zzfx(1, 0, 100, .02, .05, .02, 0, 0, 0, 0, 100, .05, 0, 0, 0, 0, 0, 1, 0)
+		zzfx(1,0,20,.04,0,.09,0,1,0,0,50 * (index + 1),.06,0,0,0,0,0,1,0) // Blip 377
+	}
+	static score() {
+		// zzfx(1, 0, 800, .01, .025, .18, 0, 0, 0, 0, 200, .06, 0, 0, 0, 0, 0, 2, .025) // Select - Mutation 9
+		zzfx(1,0,400,.04,0,.09,0,1,0,100,0,0,0,0,0,0,0,1,0); // Blip 377
+	}
+	static coming() {
+		zzfxV=.1
+		Sound.buttonClick()
+		// zzfx(.25,0,2e4,.03,0,.01,0,0,0,0,0,0,0,1e5,0,0,0,1,0); // coming
+		zzfxV=.3
+	}
+	static opening() {
+		// zzfx(.25,0,2e3,.1,0,.6,0,1,100,100,0,0,0,100,0,0,0,1,0) // coming
+		// zzfx(...[,0,34,,.25,1.75,,6,,.2,,,,.2,5,,.4,.9]); // Explosion 381
+	}
+}
 
 class Vector {
 	constructor(x = 0, y = 0) {
@@ -1088,6 +1124,7 @@ class ResultsScreen extends GameObject {
 		]
 	}
 	retry() {
+		Sound.buttonClick()
 		if (this.level instanceof Arcade) {
 			Game.root.getChild(`main`).addChild(new Arcade({ ...this.level, children: null, opacity: 1 }))
 		} else {
@@ -1355,6 +1392,7 @@ class Button extends Area {
 		align = `left`,
 		strokeStyle = Color.lightGrey,
 		fillStyle = Color.darkGrey,
+		playSounds = true,
 		...options
 	}) {
 		super({
@@ -1362,11 +1400,19 @@ class Button extends Area {
 			locked,
 			padding, border: 1,
 			strokeStyle, fillStyle,
+			playSounds,
 			...options
 		})
 		if (this.locked) {
 			this.opacity = 0.5
-			this.on(`click`, () => Animate.shake(this, { duration: 200 }))
+			this.on(`click`, () => {
+				this.playSounds && Sound.buttonLocked()
+				Animate.shake(this, { duration: 200 })
+			})
+		} else {
+			this.on(`click`, () => {
+				this.playSounds && Sound.buttonClick()
+			})
 		}
 	}
 	createChildren() {
@@ -1780,7 +1826,7 @@ class GameBoard extends GameObject {
 					return
 				}
 			}
-			zzfx(1, 0, 100, .02, .05, .02, 0, 0, 0, 0, 100, .05, 0, 0, 0, 0, 0, 1, 0);
+			Sound.tileSelect(this.tilesPlayed.length)
 			this.tilesPlayed.push(coord)
 			this.comboPlayed.push(value)
 			tile.accentColor = Color.yellow
@@ -1812,8 +1858,7 @@ class GameBoard extends GameObject {
 				tile.children[0].accentColor = null
 				Animate.shake(tile, { duration: 200 })
 			})
-			// zzfx(...[,0,202,.03,.04,.01,2,,,,,,,,1.9,,,,.01]); // Random 50
-			zzfx(1, 0, 300, .03, .04, .01, 1, 0, 0, 0, 0, 0, 0, 0, 2.5, 0, 0, 0, .01); // Random 50
+			Sound.wrongCombination()
 		}
 		this.comboPlayed = []
 		this.tilesPlayed = []
@@ -1906,6 +1951,7 @@ class Level extends GameObject {
 						align: `center`,
 						text: `NOT FOUND`,
 						size: new Vector(Game.viewRes.x - 16, 17),
+						playSounds: false,
 						onClick: () => this.onCombinationNotFound(),
 					}),
 				],
@@ -1934,10 +1980,7 @@ class Level extends GameObject {
 	nextTurn() {
 		if (this.turn >= 0) {
 			this.score++
-			// /* this.turn % 4 == 0 && */ zzfx(...[,0,200,.03,.05,.09,,,5,10,200,.12,,,,,.13,,.05]); // Select - Mutation 9
-			// this.turn % 4 == 1 && zzfx(...[,0,800,.02,.05,.36,1,,,,200,.12,.12,,,,.12,,.05]); // Select - Mutation 9
-			// this.turn % 4 == 2 && zzfx(...[,0,800,.01,.025,.18,1,,,,200,.06,.06,,,,.06,,.025]); // Select - Mutation 9
-			/* this.turn % 4 == 3 && */ zzfx(1, 0, 800, .01, .025, .18, 0, 0, 0, 0, 200, .06, 0, 0, 0, 0, 0, 2, .025); // Select - Mutation 9
+			Sound.score()
 			this.getChild(`score`).increment()
 		}
 		this.turn++
@@ -1956,7 +1999,7 @@ class Level extends GameObject {
 			this.getChild(`countdown`).reduceBy(2000)
 			Animate.shake(this.getChild(`combination`), { duration: 200 })
 			Animate.shake(this.getChild(`board`), { duration: 200 })
-			zzfx(1, 0, 202, .03, .04, .01, 2, 0, 0, 0, 0, 0, 0, 0, 1.9, 0, 0, 0, .01); // Random 50
+			Sound.buttonLocked()
 		} else if (this.combo.length) {
 			this.nextTurn()
 		}
@@ -2095,6 +2138,7 @@ class LevelsScreen extends GameObject {
 		const nextScreen = new Menu({
 			pos: viewWidth.mul(-1),
 		})
+		Sound.buttonClick()
 		Game.root.getChild(`main`).addChild(nextScreen)
 		const slideDuration = 300
 		await Promise.all([
@@ -2108,6 +2152,7 @@ class LevelsScreen extends GameObject {
 	playLevel(index) {
 		const level = this.levels[index]
 		if (!level.locked) {
+			Sound.buttonClick()
 			Game.root.getChild(`main`).addChild(new Level({
 				...level
 			}))
@@ -2214,6 +2259,7 @@ class Menu extends GameObject {
 	}
 	playArcade() {
 		if (TrophyCase.getTrophy(`HIGH FIVE`).getBest() > 10) {
+			Sound.buttonClick()
 			Game.root.getChild(`main`).addChild(new Arcade())
 			this.destroy()
 		} else {
@@ -2293,6 +2339,8 @@ class Title extends GameObject {
 		const tweenedMovement = function () {
 			Animate.slide(this, { delay, duration, to: this.pos.diff(new Vector(slideAmount)) })
 		}
+		const timer = new Timer(delay)
+		this.animate && /* timer.on(`completed`, () => */ Sound.opening()/* ) */
 		const tilePos = (new Vector(this.size.x / 2 - 17 / 2, 0)).floor()
 		return [
 			new Tile({
@@ -2405,9 +2453,13 @@ class OpeningScreen extends GameObject {
 							onMount: function () {
 								const life = new Timer((index + 1) * lifeSpan)
 
+								
 								const interval = new Interval(0)
 								let currentAssetIndex = index - 1
 								interval.on(`tick`, () => {
+									if (index + 1 == initialChildrenCount) {
+										Sound.coming()
+									}
 									interval.interval = life.progress / initialChildrenCount / 4
 									currentAssetIndex = (currentAssetIndex + 1) % 4
 									this.children[0].destroy()
@@ -2427,6 +2479,7 @@ class OpeningScreen extends GameObject {
 						const title = menu.getChild(`title`)
 						const body = menu.getChild(`body`)
 						body.opacity = 0
+						Sound.coming()
 						Game.root.getChild(`main`).addChild(menu)
 						const ogPos = title.pos.clone()
 						const center = Game.viewRes.mul(1/2).diff(title.getGlobalPosition()).diff(title.size.mul(1/2).round())
@@ -2513,6 +2566,7 @@ class TrophiesScreen extends GameObject {
 		modal.on(`close`, () => this.freezed = false)
 	}
 	async back() {
+		Sound.buttonClick()
 		const viewWidth = new Vector(Game.viewRes.x, 0)
 		const nextScreen = new Menu({
 			pos: viewWidth.mul(-1),
