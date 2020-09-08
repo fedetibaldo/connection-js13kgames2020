@@ -16,9 +16,9 @@ const terser = require(`gulp-terser`)
 
 gulp.task(`build:clean`, () =>
 	// select all the images inside the assets folder and all the files at the first directory level
-	gulp.src([`./dist/assets/*.+(png|jpg)`, `./dist/*.*`])
+	gulp.src([`./dist/*.*`])
 		// filter out all the files that are present with the same name inside the source asset folder
-		.pipe(filter(file => !fs.existsSync(path.join(__dirname, `/src/assets/${file.basename}`))))
+		.pipe(filter(file => !fs.existsSync(path.join(__dirname, `/src/${file.basename}`))))
 		// delete the remaining files
 		.pipe(clean())
 )
