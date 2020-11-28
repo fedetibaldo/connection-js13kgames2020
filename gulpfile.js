@@ -1,6 +1,7 @@
 // Native libraries
 const fs = require(`fs`)
 const path = require(`path`)
+const process = require(`process`)
 
 // NPM libraries
 const gulp = require(`gulp`)
@@ -50,7 +51,7 @@ gulp.task(`build:move`, () =>
 gulp.task(`build:images`, () =>
 	gulp.src(`./src/**/*.+(png|jpg)`)
 		.pipe(tinypng({
-			key: require(`./tinypng-api.json`).key,
+			key: process.env.TINYPNG_API_KEY || require(`./tinypng-api.json`).key,
 			sigFile: `./tinypng-api.json`,
 			log: true
 		}))
